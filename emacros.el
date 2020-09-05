@@ -82,8 +82,8 @@ to surpress compiler warning about free variable being used.")
 
 ; Make sure pre-22 versions continue to work.
 (defvar find-file-hooks nil)
-(or (memq 'emacros-load-macros find-file-hooks)
-    (setq find-file-hooks (cons 'emacros-load-macros find-file-hooks)))
+(or (memq 'emacros-load-macros find-file-hook)
+    (setq find-file-hook (cons 'emacros-load-macros find-file-hook)))
 
 (defun emacros-macrop (sym)
   "Returns t if NAME, a symbol, is the name of a keyboard macro,
@@ -272,7 +272,7 @@ or moved to in the current buffer."
               (error "Aborted"))))
     (setq overwrite-existing-macro-definition (emacros-prompt-for-overwriting-macro-definition macro-file buf symbol gl arg filename))
     (let ((find-file-hook nil)
-          (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -334,7 +334,7 @@ named, inserted, or manipulated macro in the current buffer."
          (error "Aborted")))
     (while filename
       (let ((find-file-hook nil)
-            (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+            (find-file-hook nil) ; make sure that pre-22 versions continue to work
             (emacs-lisp-mode-hook nil)
             (after-save-hook nil)
             (kill-buffer-hook nil))
@@ -366,7 +366,7 @@ named, inserted, or manipulated macro in the current buffer."
                               (setq skip-this-file t))))
                  (if (not skip-this-file)
                      (let ((find-file-hook nil)
-                           (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+                           (find-file-hook nil) ; make sure that pre-22 versions continue to work
                            (emacs-lisp-mode-hook nil)
                            (after-save-hook nil)
                            (kill-buffer-hook nil))
@@ -485,7 +485,7 @@ or manipulated macro in the current buffer."
            (if (= gl ?g) "local" "global")))
          (error "Aborted")))
     (let ((find-file-hook nil)
-          (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -523,7 +523,7 @@ or manipulated macro in the current buffer."
                    (emacros-remove-macro-definition-from-file name buf2 filename2)
                  (error "Aborted"))))
     (let ((find-file-hook nil)
-          (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -588,7 +588,7 @@ inserted, or manipulated macro in the current buffer."
          (error "Aborted")))
     (while filename
       (let ((find-file-hook nil)
-            (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+            (find-file-hook nil) ; make sure that pre-22 versions continue to work
             (emacs-lisp-mode-hook nil)
             (after-save-hook nil)
             (kill-buffer-hook nil))
@@ -804,7 +804,7 @@ created during present session."
       (princ " ") ; Funny, RMS is such a stickler for newline at EOF, and
                   ; his own printstream drops newlines at the end unless you
                   ; follow them by something else.
-    (print-help-return-message))))
+    (help-print-return-message))))
 
 (defun emacros-show-macro-names (arg)
   "Displays the names of the kbd-macros that are currently defined."
@@ -837,7 +837,7 @@ created during present session."
       (princ " ") ; Funny, RMS is such a stickler for newline at EOF, and
                   ; his nown printstream drops newlines at the end unless you
                   ; follow it by something else.
-    (print-help-return-message))))
+    (help-print-return-message))))
 
 (defun emacros-refresh-macros ()
   "Erases all macros and then reloads for current buffer.
@@ -864,7 +864,7 @@ just been started and the current file read from disc."
        nil
      (let ((macro-name-exists-p nil))
        (let ((find-file-hook nil)
-             (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+             (find-file-hook nil) ; make sure that pre-22 versions continue to work
              (emacs-lisp-mode-hook nil)
              (after-save-hook nil)
              (kill-buffer-hook nil))
@@ -912,7 +912,7 @@ just been started and the current file read from disc."
   (if (and (not buf) (not (file-exists-p filename)))
       nil
     (let ((find-file-hook nil)
-          (find-file-hooks nil) ; make sure that pre-22 versions continue to work
+          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -943,7 +943,7 @@ just been started and the current file read from disc."
     (mapatoms (lambda (symbol) (if (emacros-macrop symbol) (setq macro-list (cons symbol macro-list)))))
     (sort
      macro-list
-     '(lambda (sym1 sym2)
+     #'(lambda (sym1 sym2)
         (let* ((str1 (prin1-to-string sym1))
               (str2 (prin1-to-string sym2))
               (cmp (compare-strings str1 0 (length str1) str2 0 (length str2) t)))
