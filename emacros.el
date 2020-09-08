@@ -1003,8 +1003,8 @@ Those are the symbols that have a non-void function definition and are macro."
      #'(lambda (sym1 sym2)
         (let* ((str1 (prin1-to-string sym1))
               (str2 (prin1-to-string sym2))
-              (cmp (compare-strings str1 0 (length str1)
-                                    str2 0 (length str2)
+              (cmp (compare-strings str1 nil nil
+                                    str2 nil nil
                                     t)))
           (and (integerp cmp) (< cmp 0)))))))
 
