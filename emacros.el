@@ -34,6 +34,16 @@
 
 ;;; Code:
 
+;;; TODO
+;; - use lexical-binding in emacros.el
+;; - Enhance storage:
+;;   - save kb-macros in pure Elisp, like elmacro does.  That would allow
+;;     exchanging keyboard macros between users that do not have the same key
+;;     bindings.
+;;   - use one file per directory, use a zip or tar file
+;;   - maintain a hash of each keyboard macro text, to ensure that the macros
+;;     have not been tampered with??
+;;   - allow macros to be byte compiled, to speed up?
 
 (defvar emacros-minibuffer-local-map
   nil
