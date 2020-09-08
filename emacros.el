@@ -60,7 +60,6 @@ Used by emacros-read-macro-name1.")
 (defgroup emacros nil
   "Emacros: organize recorded keyboard macros."
   :group 'convenience
-  :group 'keyboard
   :group 'kmacro)
 
 (defcustom emacros-global-dir
