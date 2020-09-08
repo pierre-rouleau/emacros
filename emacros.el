@@ -154,7 +154,8 @@ not including the first slash."
 (defun emacros-process-global-dir ()
   "Expands the pathname stored in emacros-global-dir.
 Return a string that ends with exactly one slash."
-  (setq emacros-global-dir (expand-file-name (concat emacros-global-dir "/"))))
+  (setq emacros-global-dir (file-name-as-directory
+                            (expand-file-name emacros-global-dir))))
 
 (defun emacros-exit-macro-read1 ()
   "Terminate the new macro name from the minibuffer.
