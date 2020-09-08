@@ -992,15 +992,20 @@ just been started and the current file read from the file system."
                  (delete-char 1)))))
 
 (defun emacros-make-macro-list ()
-  "Return a list of all symbols whose function definition is not void and is a macro."
+  "Return a sorted list of all keyboard macro symbols.
+Those are the symbols that have a non-void function definition and are macro."
   (let (macro-list)
-    (mapatoms (lambda (symbol) (if (emacros-macrop symbol) (setq macro-list (cons symbol macro-list)))))
+    (mapatoms (lambda (symbol)
+                (if (emacros-macrop symbol)
+                    (setq macro-list (cons symbol macro-list)))))
     (sort
      macro-list
      #'(lambda (sym1 sym2)
         (let* ((str1 (prin1-to-string sym1))
               (str2 (prin1-to-string sym2))
-              (cmp (compare-strings str1 0 (length str1) str2 0 (length str2) t)))
+              (cmp (compare-strings str1 0 (length str1)
+                                    str2 0 (length str2)
+                                    t)))
           (and (integerp cmp) (< cmp 0)))))))
 
 (defun emacros-there-are-keyboard-macros ()
