@@ -1011,9 +1011,12 @@ Those are the symbols that have a non-void function definition and are macro."
 (defun emacros-there-are-keyboard-macros ()
   "Return t if there is at least one keyboard macro currently defined."
   (catch 'macro-found
-    (mapatoms (lambda (symbol) (if (emacros-macrop symbol) (throw 'macro-found t))))
+    (mapatoms (lambda (symbol)
+                (if (emacros-macrop symbol)
+                    (throw 'macro-found t))))
     nil))
 
+;; ---------------------------------------------------------------------------
 (provide 'emacros)
 
 ;;; emacros.el ends here
