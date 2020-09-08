@@ -1,0 +1,45 @@
+# Identifies files to be ignored by Git.
+
+# Temporary holding directories
+tmp/*
+old/*
+# Directory holding potentially future files
+other/*
+
+# Byte-Compiled Emacs Lisp files
+*.elc
+
+# Packaging
+.cask
+
+# Backup files
+*~
+
+# Emacs temporary files
+.#*
+*#
+
+# Emacs desktop file
+.emacs.desktop
+
+# (C)Tags files
+TAGS
+TAGS.*
+
+# Undo-tree save-files
+*.~undo-tree
+
+# Build output
+out/*
+tmp-copies/*
+
+# Local Elpa-compliant Emacs package archive
+pelpa/*
+
+# macOS fork files
+.DS_Store
+
+# Mercurial DVCS files (when double repository is used)
+.hg*
+
+# -----------------------------------------------------------------------------
