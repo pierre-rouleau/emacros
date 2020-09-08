@@ -34,30 +34,30 @@
 ;; The following describes the emacros commands ('*') and functions ('-')
 ;; code hierarchy.
 ;;
-;; - emacros-macrop
-;; - emacros-processed-mode-name
-;; - emacros-db-mode-filename
-;; - emacros-process-global-dir
-;; - emacros-read-macro-name1
-;;   * emacros-exit-macro-read1
-;; - emacros-read-macro-name2
-;;   * emacros-exit-macro-read2
-;; - emacros-new-macro
-;; * emacros-name-last-kbd-macro-add
-;;   - emacros-prompt-for-overwriting-macro-definition
-;; * emacros-rename-macro
-;; * emacros-move-macro
-;; * emacros-remove-macro
-;; * emacros-execute-named-macro
-;; * emacros-auto-execute-named-macro
-;; * emacros-load-macros
-;; * emacros-show-macros
-;; * emacros-show-macro-names
-;; * emacros-refresh-macros
-;; - emacros-insert-kbd-macro
-;; - emacros-remove-macro-definition-from-file
-;; - emacros-remove-macro-definition
-;; - emacros-make-macro-list
+;; - `emacros-macrop'
+;; - `emacros-processed-mode-name'
+;; - `emacros-db-mode-filename'
+;; - `emacros-process-global-dir'
+;; - `emacros-read-macro-name1'
+;;   * `emacros-exit-macro-read1'
+;; - `emacros-read-macro-name2'
+;;   * `emacros-exit-macro-read2'
+;; - `emacros-new-macro'
+;; * `emacros-name-last-kbd-macro-add'
+;;   - `emacros-prompt-for-overwriting-macro-definition'
+;; * `emacros-rename-macro'
+;; * `emacros-move-macro'
+;; * `emacros-remove-macro'
+;; * `emacros-execute-named-macro'
+;; * `emacros-auto-execute-named-macro'
+;; * `emacros-load-macros'
+;; * `emacros-show-macros'
+;; * `emacros-show-macro-names'
+;; * `emacros-refresh-macros'
+;; - `emacros-insert-kbd-macro'
+;; - `emacros-remove-macro-definition-from-file'
+;; - `emacros-remove-macro-definition'
+;; - `emacros-make-macro-list'
 
 ;; ---------------------------------------------------------------------------
 ;;; Code:
@@ -76,7 +76,7 @@
 (defvar emacros-minibuffer-local-map
   nil
   "Local keymap for reading a new name for a keyboard macro from minibuffer.
-Used by emacros-read-macro-name1.")
+Used by function `emacros-read-macro-name1'.")
 
 (setq emacros-minibuffer-local-map (make-sparse-keymap))
 
@@ -174,7 +174,7 @@ not including the first slash."
           (emacros-processed-mode-name)))
 
 (defun emacros-process-global-dir ()
-  "Expands the pathname stored in emacros-global-dir.
+  "Expands the pathname stored in `emacros-global-dir'.
 Return a string that ends with exactly one slash."
   (setq emacros-global-dir (file-name-as-directory
                             (expand-file-name emacros-global-dir))))
