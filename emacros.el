@@ -1,7 +1,10 @@
 ;;; emacros.el --- Package for organizing and handling keyboard macros.
 
-;; This is EMACROS 5.0, an extension to GNU Emacs.
-;; Copyright (C) 1993, 2007 Free Software Foundation, Inc.
+;; Original author: Thomas Becker <emacros@thbecker.net>
+;; Modifications, updates after EMacros 5.0:  Pierre Rouleau
+
+;; This is EMACROS 5.1, an extension to GNU Emacs.
+;; Copyright (C) 1993, 2007, 2020 Free Software Foundation, Inc.
 
 ;; EMACROS is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY.  No author or distributor
@@ -30,6 +33,7 @@
 ;;
 
 ;;; Code:
+
 
 (defvar emacros-minibuffer-local-map
   nil
@@ -107,13 +111,27 @@ Return nil otherwise."
 
 (defun emacros-processed-mode-name ()
   "Return a valid mode name.
-If the current mode name contains no slash, returns the current mode name.
+For all modes that have a name that ends with \"-mode\", use the name
+without its \"-mode\" suffix.
+For the others, if the current mode name contains no slash,
+returns the current mode name.
 Otherwise, returns the initial substring of the current mode name up to but
 not including the first slash."
-  (let ((slash-pos-in-mode-name (string-match "/" mode-name)))
-    (if slash-pos-in-mode-name
-        (substring mode-name 0 slash-pos-in-mode-name)
-      mode-name)))
+  (let ((major-mode-name (symbol-name major-mode)))
+    (if (string-match "-mode\\'" major-mode-name)
+        ;; for major-mode names that end with "-mode", just trim that off
+        (substring major-mode-name 0 -5)
+      ;; otherwise, use original code
+      (let ((slash-pos-in-mode-name (string-match "/" mode-name)))
+        (if slash-pos-in-mode-name
+            (substring mode-name 0 slash-pos-in-mode-name)
+          mode-name)))))
+
+(defun emacros-db-mode-filename()
+  "Return the file name storing emacros for current major mode."
+  ;; TODO: store all files inside a .emacros sub-directory.
+  (format ".emacros-for-%s.el"
+          (emacros-processed-mode-name)))
 
 (defun emacros-process-global-dir ()
   "Expands the pathname stored in emacros-global-dir.
@@ -239,7 +257,7 @@ or moved to in the current buffer."
       (error "No kbd-macro defined"))
   (emacros-process-global-dir)
   (let ((symbol (emacros-read-macro-name1 "Name for last kbd-macro: "))
-        (macro-file (concat (emacros-processed-mode-name) "-mac.el"))
+        (macro-file (emacros-db-mode-filename))
         (filename)
         (gl)
         (buf)
@@ -320,7 +338,7 @@ named, inserted, or manipulated macro in the current buffer."
   (let* ((old-name (emacros-read-macro-name2 "Replace macroname"))
          (new-name (emacros-read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
-         (macro-file (concat (emacros-processed-mode-name) "-mac.el"))
+         (macro-file (emacros-db-mode-filename))
          (filename)
          (local-macro-filename)
          (global-macro-filename)
@@ -449,7 +467,7 @@ or manipulated macro in the current buffer."
   (if (equal (expand-file-name default-directory) emacros-global-dir)
       (error "Local = global in this buffer"))
   (let ((name (emacros-read-macro-name2 "Move macro named"))
-        (macro-file (concat (emacros-processed-mode-name) "-mac.el"))
+        (macro-file (emacros-db-mode-filename))
         (gl)
         (moved)
         (filename1)
@@ -586,7 +604,7 @@ inserted, or manipulated macro in the current buffer."
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
   (emacros-process-global-dir)
   (let ((name (emacros-read-macro-name2 "Remove macro named"))
-        (macro-file (concat (emacros-processed-mode-name) "-mac.el"))
+        (macro-file (emacros-db-mode-filename))
         (filename)
         (local-macro-filename)
         (global-macro-filename)
@@ -737,7 +755,7 @@ created during present session."
   (interactive)
   (emacros-process-global-dir)
   (let ((processed-mode-name (emacros-processed-mode-name)))
-    (let ((macro-file (concat processed-mode-name "-mac.el"))
+    (let ((macro-file (emacros-db-mode-filename))
           (mac-ok)
           (nextmac)
           (filename))
