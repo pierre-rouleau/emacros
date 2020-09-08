@@ -56,9 +56,17 @@ Used by emacros-read-macro-name1.")
 (define-key emacros-minibuffer-local-map "\n" 'emacros-exit-macro-read1)
 (define-key emacros-minibuffer-local-map "\r" 'emacros-exit-macro-read1)
 
-(defvar emacros-global-dir
+
+(defgroup emacros nil
+  "Emacros: organize recorded keyboard macros."
+  :group 'convenience
+  :group 'keyboard
+  :group 'kmacro)
+
+(defcustom emacros-global-dir
   "~/"
-  "*Default directory for saving global kbd-macros.")
+  "*Default directory for saving global kbd-macros."
+  :type string)
 
 (defvar emacros-glob-loc
   ?l
