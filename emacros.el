@@ -897,7 +897,7 @@ usual two column format."
   "Erases all macros and then reloads for current buffer.
 When called in a buffer, this function produces, as far as
 kbd-macros are concerned, the same situation as if Emacs had
-just been started and the current file read from disc."
+just been started and the current file read from the file system."
   (interactive)
   (let* ((mlist (emacros-make-macro-list))
          (next (car mlist)))
