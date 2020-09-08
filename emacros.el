@@ -66,7 +66,7 @@ Used by emacros-read-macro-name1.")
 (defcustom emacros-global-dir
   "~/"
   "*Default directory for saving global kbd-macros."
-  :type string)
+  :type 'string)
 
 (defvar emacros-glob-loc
   ?l
