@@ -1,4 +1,4 @@
-;;; emacros.el --- Package for organizing and handling keyboard macros.
+;;; emacros.el --- Package for organizing and handling keyboard macros.  -*- lexical-binding: t; -*-
 
 ;; Original author: Thomas Becker <emacros@thbecker.net>
 ;; Modifications, updates after EMacros 5.0:  Pierre Rouleau
@@ -30,8 +30,36 @@
 
 
 ;;; Commentary:
-;;
 
+;; The following describes the emacros commands ('*') and functions ('-')
+;; code hierarchy.
+;;
+;; - emacros-macrop
+;; - emacros-processed-mode-name
+;; - emacros-db-mode-filename
+;; - emacros-process-global-dir
+;; - emacros-read-macro-name1
+;;   * emacros-exit-macro-read1
+;; - emacros-read-macro-name2
+;;   * emacros-exit-macro-read2
+;; - emacros-new-macro
+;; * emacros-name-last-kbd-macro-add
+;;   - emacros-prompt-for-overwriting-macro-definition
+;; * emacros-rename-macro
+;; * emacros-move-macro
+;; * emacros-remove-macro
+;; * emacros-execute-named-macro
+;; * emacros-auto-execute-named-macro
+;; * emacros-load-macros
+;; * emacros-show-macros
+;; * emacros-show-macro-names
+;; * emacros-refresh-macros
+;; - emacros-insert-kbd-macro
+;; - emacros-remove-macro-definition-from-file
+;; - emacros-remove-macro-definition
+;; - emacros-make-macro-list
+
+;; ---------------------------------------------------------------------------
 ;;; Code:
 
 ;;; TODO
@@ -109,11 +137,6 @@ variable being used.")
   "History list variable for reading the name of an existing macro.")
 
 (defvar find-file-hook nil)
-(or (memq 'emacros-load-macros find-file-hook)
-    (setq find-file-hook (cons 'emacros-load-macros find-file-hook)))
-
-; Make sure pre-22 versions continue to work.
-(defvar find-file-hooks nil)
 (or (memq 'emacros-load-macros find-file-hook)
     (setq find-file-hook (cons 'emacros-load-macros find-file-hook)))
 
@@ -321,9 +344,9 @@ or moved to in the current buffer."
               (y-or-n-p
                (format "Buffer visiting %s macro file modified.  Continue? (Will save!)? " (if (= gl ?l) "local" "global")))
               (error "Aborted"))))
-    (setq overwrite-existing-macro-definition (emacros-prompt-for-overwriting-macro-definition macro-file buf symbol gl arg filename))
+    (setq overwrite-existing-macro-definition
+          (emacros-prompt-for-overwriting-macro-definition macro-file buf symbol gl arg filename))
     (let ((find-file-hook nil)
-          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -385,7 +408,6 @@ named, inserted, or manipulated macro in the current buffer."
          (error "Aborted")))
     (while filename
       (let ((find-file-hook nil)
-            (find-file-hook nil) ; make sure that pre-22 versions continue to work
             (emacs-lisp-mode-hook nil)
             (after-save-hook nil)
             (kill-buffer-hook nil))
@@ -417,7 +439,6 @@ named, inserted, or manipulated macro in the current buffer."
                               (setq skip-this-file t))))
                  (if (not skip-this-file)
                      (let ((find-file-hook nil)
-                           (find-file-hook nil) ; make sure that pre-22 versions continue to work
                            (emacs-lisp-mode-hook nil)
                            (after-save-hook nil)
                            (kill-buffer-hook nil))
@@ -536,7 +557,6 @@ or manipulated macro in the current buffer."
            (if (= gl ?g) "local" "global")))
          (error "Aborted")))
     (let ((find-file-hook nil)
-          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -574,7 +594,6 @@ or manipulated macro in the current buffer."
                    (emacros-remove-macro-definition-from-file name buf2 filename2)
                  (error "Aborted"))))
     (let ((find-file-hook nil)
-          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
@@ -639,7 +658,6 @@ inserted, or manipulated macro in the current buffer."
          (error "Aborted")))
     (while filename
       (let ((find-file-hook nil)
-            (find-file-hook nil) ; make sure that pre-22 versions continue to work
             (emacs-lisp-mode-hook nil)
             (after-save-hook nil)
             (kill-buffer-hook nil))
@@ -912,13 +930,12 @@ just been started and the current file read from the file system."
   (emacros-load-macros)
   (message "Macros refreshed for current buffer"))
 
-(defun emacros-prompt-for-overwriting-macro-definition (macro-file buf symbol gl custom-file filename)
+(defun emacros-prompt-for-overwriting-macro-definition (macro-file buf symbol gl use-custom-file filename)
   "Check for macro definition in a MACRO-FILE. If so, prompt for overwriting."
    (if (and (not buf) (not (file-exists-p filename)))
        nil
      (let ((macro-name-exists-p nil))
        (let ((find-file-hook nil)
-             (find-file-hook nil) ; make sure that pre-22 versions continue to work
              (emacs-lisp-mode-hook nil)
              (after-save-hook nil)
              (kill-buffer-hook nil))
@@ -933,7 +950,7 @@ just been started and the current file read from the file system."
            (or buf (kill-buffer (buffer-name)))))
        (if (not macro-name-exists-p)
            nil
-         (if custom-file
+         (if use-custom-file
              (or (ding)
                  (y-or-n-p
                   (format
@@ -966,7 +983,6 @@ just been started and the current file read from the file system."
   (if (and (not buf) (not (file-exists-p filename)))
       nil
     (let ((find-file-hook nil)
-          (find-file-hook nil) ; make sure that pre-22 versions continue to work
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
           (kill-buffer-hook nil))
