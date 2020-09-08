@@ -37,15 +37,20 @@
 ;; - `emacros-macrop'
 ;; - `emacros-processed-mode-name'
 ;; - `emacros-db-mode-filename'
-;; - `emacros-process-global-dir'
-;; - `emacros-read-macro-name1'
-;;   * `emacros-exit-macro-read1'
+
 ;; - `emacros-read-macro-name2'
 ;;   * `emacros-exit-macro-read2'
 ;; - `emacros-new-macro'
+
 ;; * `emacros-name-last-kbd-macro-add'
 ;;   - `emacros-prompt-for-overwriting-macro-definition'
+;;   - `emacros-read-macro-name1'
+;;     * `emacros-exit-macro-read1'
+
 ;; * `emacros-rename-macro'
+;;   - `emacros-read-macro-name1'
+;;     * `emacros-exit-macro-read1'
+
 ;; * `emacros-move-macro'
 ;; * `emacros-remove-macro'
 ;; * `emacros-execute-named-macro'
@@ -140,6 +145,17 @@ variable being used.")
 (or (memq 'emacros-load-macros find-file-hook)
     (setq find-file-hook (cons 'emacros-load-macros find-file-hook)))
 
+
+(defun emacros-dirname-expanded (dirname)
+  "Return DIRNAME string fully expanded with path and single trailing slash."
+  (file-name-as-directory (expand-file-name dirname)))
+
+(defun emacros-same-dirname (d1 d2)
+  "Return t if D1 and D2 correspond to the same directory name, nil otherwise."
+  (string=
+   (emacros-dirname-expanded d1)
+   (emacros-dirname-expanded d2)))
+
 (defun emacros-macrop (name)
   "Return t if the NAME symbol is the name of a keyboard macro.
 Return nil otherwise."
@@ -172,12 +188,6 @@ not including the first slash."
   ;; TODO: store all files inside a .emacros sub-directory.
   (format ".emacros-for-%s.el"
           (emacros-processed-mode-name)))
-
-(defun emacros-process-global-dir ()
-  "Expands the pathname stored in `emacros-global-dir'.
-Return a string that ends with exactly one slash."
-  (setq emacros-global-dir (file-name-as-directory
-                            (expand-file-name emacros-global-dir))))
 
 (defun emacros-exit-macro-read1 ()
   "Terminate the new macro name from the minibuffer.
@@ -296,7 +306,6 @@ or moved to in the current buffer."
   (interactive "P")
   (or last-kbd-macro
       (error "No kbd-macro defined"))
-  (emacros-process-global-dir)
   (let ((symbol (emacros-read-macro-name1 "Name for last kbd-macro: "))
         (macro-file (emacros-db-mode-filename))
         (filename)
@@ -311,7 +320,7 @@ or moved to in the current buffer."
                    (read-file-name (concat "Write macro to file (default "
                                            filename "): ")
                                    default-directory filename)))
-      (if (equal (expand-file-name default-directory) emacros-global-dir)
+      (if (emacros-same-dirname default-directory emacros-global-dir)
           (let ((cursor-in-echo-area t))
             (message
              "Local = global in this buffer. Press any key to continue: ")
@@ -375,7 +384,6 @@ to replace it.  Default for the old name is the name of the most recently
 named, inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
-  (emacros-process-global-dir)
   (let* ((old-name (emacros-read-macro-name2 "Replace macroname"))
          (new-name (emacros-read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
@@ -502,8 +510,7 @@ vice versa. Default is the name of the most recently saved, inserted,
 or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
-  (emacros-process-global-dir)
-  (if (equal (expand-file-name default-directory) emacros-global-dir)
+  (if (emacros-same-dirname default-directory emacros-global-dir)
       (error "Local = global in this buffer"))
   (let ((name (emacros-read-macro-name2 "Move macro named"))
         (macro-file (emacros-db-mode-filename))
@@ -639,17 +646,13 @@ The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
-  (emacros-process-global-dir)
-  (let ((name (emacros-read-macro-name2 "Remove macro named"))
-        (macro-file (emacros-db-mode-filename))
-        (filename)
-        (local-macro-filename)
-        (global-macro-filename)
-        (buf)
-        (deleted))
-    (setq local-macro-filename (expand-file-name macro-file default-directory))
-    (setq global-macro-filename(expand-file-name macro-file emacros-global-dir))
-    (setq filename local-macro-filename)
+  (let* ((name (emacros-read-macro-name2 "Remove macro named"))
+         (macro-file (emacros-db-mode-filename))
+         (local-macro-filename    (expand-file-name macro-file default-directory))
+         (global-macro-filename   (expand-file-name macro-file emacros-global-dir))
+         (filename                local-macro-filename)
+         (buf)
+         (deleted))
     (if (and (setq buf (get-file-buffer filename))
              (buffer-modified-p buf))
         (or
@@ -789,7 +792,6 @@ the forward slash is used.
 Does not consider files that have been loaded previously or
 created during present session."
   (interactive)
-  (emacros-process-global-dir)
   (let ((processed-mode-name (emacros-processed-mode-name)))
     (let ((macro-file (emacros-db-mode-filename))
           (mac-ok)
@@ -806,7 +808,7 @@ created during present session."
       (if (file-exists-p filename)
           (progn (or nextmac (load-file filename))
                  (setq emacros-glob-loc ?g)))
-      (if (equal emacros-global-dir (expand-file-name default-directory))
+      (if (emacros-same-dirname default-directory emacros-global-dir)
           (progn (setq emacros-glob-loc ?g)
                  (setq nextmac (cons processed-mode-name (cdr nextmac))))
         (let ((dirlist (cdr nextmac))
