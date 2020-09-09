@@ -246,7 +246,7 @@ with the exception of optional argument LETGO symbol."
                    (error "Function %s is already defined and not a keyboard macro" symbol))))
     symbol))
 
-;; --
+;; ---------------------------------------------------------------------------
 
 (defvar emacros--default
   nil
@@ -260,9 +260,10 @@ its minibuffer completion function `emacros-exit-macro-read2'.")
 (defun emacros-exit-macro-read2 ()
   "Exit if the minibuffer contain a valid macro name.
 Otherwise try to complete it.
-Substitutes `minibuffer-complete-and-exit'
-when reading an existing macro or macroname.
-This is used by function `emacros-read-macro-name2'."
+
+This function substitutes `minibuffer-complete-and-exit'
+when reading an existing macro or macroname as used by the
+function `emacros-read-macro-name2'."
   (interactive)
   (if (or (not (= (minibuffer-prompt-end) (point-max)))
           emacros--default)
@@ -302,6 +303,8 @@ Supports minibuffer completion."
                                  'minibuffer-complete-and-exit
                                  minibuffer-local-must-match-map))
     (car (read-from-string inp))))
+
+;; ---------------------------------------------------------------------------
 
 (defun emacros-new-macro (name macro-text)
   "Assigns to the symbol NAME the function definition MACRO-TEXT.
@@ -747,7 +750,8 @@ in the current buffer."
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
   (let ((prompt (format "Auto-execute macro named%s: "
                         (if (emacros-macrop emacros-last-name)
-                            (format " (default %s)" emacros-last-name) "")))
+                            (format " (default %s)" emacros-last-name)
+                          "")))
         (name "")
         (is-macro)
         (char)
