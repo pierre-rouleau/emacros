@@ -76,7 +76,13 @@
 ;;; Code:
 
 ;;; TODO
-;; - use lexical-binding in emacros.el
+;; - enhance ability to use the repeat command to execute the last executed
+;;   emacro quickly. repeat fails at the moment with an error about the
+;;   failed execution of emacros-exit-macro-read2.  However, we can use M-x
+;;   to execute the named emacro and that can be repeated.  So, check if changing
+;;   the execution code to use execute-extended-command would not solve the
+;;   problem, but only after reviewing the code related to the 2 prompts.
+
 ;; - Enhance storage:
 ;;   - save kb-macros in pure Elisp, like elmacro does.  That would allow
 ;;     exchanging keyboard macros between users that do not have the same key
@@ -85,6 +91,7 @@
 ;;   - maintain a hash of each keyboard macro text, to ensure that the macros
 ;;     have not been tampered with??
 ;;   - allow macros to be byte compiled, to speed up?
+;;   - package this with true elpa support and all that's needed for true autoload.
 
 (defvar emacros-minibuffer-local-map
   nil
@@ -294,9 +301,12 @@ PROMPT must be given without trailing colon and blank."
                                  minibuffer-local-must-match-map))
     (car (read-from-string inp))))
 
-(defun emacros-new-macro (name mac)
-  "Assigns to the symbol NAME the function definition MAC string."
-  (fset name mac))
+(defun emacros-new-macro (name macro-text)
+  "Assigns to the symbol NAME the function definition MACRO-TEXT.
+- NAME       := macro name symbol
+- MACRO-TEXT := string; the recorded macro keys.
+This function is stored inside the emacros macro storage files."
+  (fset name macro-text))
 
 (defun emacros-name-last-kbd-macro-add (&optional arg)
   "Assigns a name to the last keyboard macro defined.
@@ -805,7 +815,8 @@ created during present session."
         (while emacros-ok
           (setq nextmac (car emacros-ok))
           (setq emacros-ok (cdr emacros-ok))
-          (and (equal processed-mode-name (car nextmac)) (throw 'found-mode t))
+          (and (equal processed-mode-name (car nextmac))
+               (throw 'found-mode t))
           (setq mac-ok (cons nextmac mac-ok))
           (setq nextmac nil)))
       (setq filename (expand-file-name macro-file emacros-global-dir))
