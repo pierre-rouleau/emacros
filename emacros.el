@@ -115,42 +115,29 @@ Used by function `emacros-read-macro-name1'.")
   "*Default directory for saving global kbd-macros."
   :type 'string)
 
-(defvar emacros-glob-loc
+(defvar-local emacros-glob-loc
   ?l
   "Default for saving named kbd-macros.
-Value ?l means local, value ?g means global.
-This is a buffer-local variable.")
+Value ?l means local, value ?g means global.")
 
-(make-variable-buffer-local 'emacros-glob-loc)
 
-(defvar emacros-last-name
+(defvar-local emacros-last-name
   nil
-  "Name of most recently named, renamed, moved, or executed kbd-macro.
-This is a buffer-local variable.")
+  "Name of most recently named, renamed, moved, or executed kbd-macro.")
 
-(make-variable-buffer-local 'emacros-last-name)
-
-(defvar emacros-last-saved
+(defvar-local emacros-last-saved
   nil
   "Name of macro that was most recently moved or saved.
 
 This is the name of the last macro moved or saved by function
-`emacros-name-last-kbd-macro-add' with no prefix argument.
-This is a buffer-local variable.")
+`emacros-name-last-kbd-macro-add' with no prefix argument.")
 
-(make-variable-buffer-local 'emacros-last-saved)
 
 (defvar emacros-ok
   nil
   "List of lists of directories from which kbd-macro files have been loaded.
 Each list is headed by the name of the mode to which it pertains.")
 
-(defvar emacros-default
-  nil
-  "Default macro name.
-Used only as dynamically bound local variable.
-Defined globally in order to surpress compiler warning about free
-variable being used.")
 
 (defvar emacros-read-existing-macro-name-history-list
   nil
@@ -241,20 +228,7 @@ from minibuffer.  Used by function `emacros-read-macro-name1'."
                    (delete-region (point) (point-max))))
           (exit-minibuffer))))))
 
-(defun emacros-exit-macro-read2 ()
-  "Exit if the minibuffer contain a valid macro name.
-Otherwise try to complete it.
-Substitutes `minibuffer-complete-and-exit'
-when reading an existing macro or macroname.
-Used by function `emacros-read-macro-name2'."
-  (interactive)
-  (if (or (not (= (minibuffer-prompt-end) (point-max))) emacros-default)
-      (minibuffer-complete-and-exit)
-    (ding)
-    (goto-char (minibuffer-prompt-end))
-    (insert "[No default]")
-    (sit-for 2)
-    (delete-region (minibuffer-prompt-end) (point-max))))
+
 
 (defun emacros-read-macro-name1 (prompt &optional letgo)
   "Read a new name for a macro from minibuffer, prompting with PROMPT.
@@ -272,10 +246,38 @@ with the exception of optional argument LETGO symbol."
                    (error "Function %s is already defined and not a keyboard macro" symbol))))
     symbol))
 
+;; --
+
+(defvar emacros--default
+  nil
+  "Dynamic binding storage for emacros last name.
+Temporary storage of the last used macro name for the
+minibuffer completion of commands dealing with emacros.
+
+Set by the function `emacros-read-macro-name2' to allow use inside
+its minibuffer completion function `emacros-exit-macro-read2'.")
+
+(defun emacros-exit-macro-read2 ()
+  "Exit if the minibuffer contain a valid macro name.
+Otherwise try to complete it.
+Substitutes `minibuffer-complete-and-exit'
+when reading an existing macro or macroname.
+This is used by function `emacros-read-macro-name2'."
+  (interactive)
+  (if (or (not (= (minibuffer-prompt-end) (point-max)))
+          emacros--default)
+      (minibuffer-complete-and-exit)
+    (ding)
+    (goto-char (minibuffer-prompt-end))
+    (insert "[No default]")
+    (sit-for 2)
+    (delete-region (minibuffer-prompt-end) (point-max))))
+
 (defun emacros-read-macro-name2 (prompt)
   "Read an existing name of a kbd-macro, prompting with PROMPT.
-PROMPT must be given without trailing colon and blank."
-  (let ((emacros-default (emacros-macrop emacros-last-name))
+PROMPT must be given without trailing colon and blank.
+Supports minibuffer completion."
+  (let ((emacros--default (emacros-macrop emacros-last-name))
         (inp))
     (unwind-protect
         (progn
@@ -285,15 +287,15 @@ PROMPT must be given without trailing colon and blank."
           (setq inp (completing-read
                      (format "%s%s: "
                              prompt
-                             (if emacros-default
+                             (if emacros--default
                                  (format " (default %s)" emacros-last-name)
                                ""))
-                     obarray
-                     'emacros-macrop
-                     t
-                     nil
+                     obarray            ; collection: all objects
+                     'emacros-macrop    ; predicate: that are macros
+                     t                  ; require-match: must chose complete element
+                     nil                ;
                      'emacros-read-existing-macro-name-history-list
-                     (if emacros-default
+                     (if emacros--default
                          (format "%s" emacros-last-name)
                        ""))))
       (substitute-key-definition 'emacros-exit-macro-read2
