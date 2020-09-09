@@ -30,6 +30,14 @@
 
 
 ;;; Commentary:
+;;
+;; Usage:
+;;
+;; - Add the following code to your Emacs initialization code:
+;;
+;;   (add-hook 'find-file-hook 'emacros-load-macros)
+
+
 
 ;; The following describes the emacros commands ('*') and functions ('-')
 ;; code hierarchy.
@@ -140,11 +148,6 @@ variable being used.")
 (defvar emacros-read-existing-macro-name-history-list
   nil
   "History list variable for reading the name of an existing macro.")
-
-(defvar find-file-hook nil)
-(or (memq 'emacros-load-macros find-file-hook)
-    (setq find-file-hook (cons 'emacros-load-macros find-file-hook)))
-
 
 (defun emacros-dirname-expanded (dirname)
   "Return DIRNAME string fully expanded with path and single trailing slash."
@@ -780,6 +783,7 @@ in the current buffer."
     (setq emacros-last-name symbol)
     (execute-kbd-macro symbol)))
 
+;;;###autoload
 (defun emacros-load-macros ()
   "Attempt to load macro definitions file.
 The file is mode-mac.el  (where \"mode\"
