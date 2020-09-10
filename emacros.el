@@ -650,15 +650,15 @@ named, inserted, or manipulated macro in the current buffer."
                  (point-max) t)
             (setq new-name-found t))))
       (when old-name-found
-        (if new-name-found
-            (progn (ding)
-                   (if (y-or-n-p
-                        (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                                new-name
-                                (if (equal filename local-macro-filename) "local" "global")
-                                macro-file))
-                       (emacros-remove-macro-definition-from-file new-name buf filename)
-                     (setq skip-this-file t))))
+        (when new-name-found
+          (ding)
+          (if (y-or-n-p
+               (format "Macro %s exists in %s macro file %s.  Overwrite? "
+                       new-name
+                       (if (equal filename local-macro-filename) "local" "global")
+                       macro-file))
+              (emacros-remove-macro-definition-from-file new-name buf filename)
+            (setq skip-this-file t)))
         (if (not skip-this-file)
             (let ((find-file-hook nil)
                   (emacs-lisp-mode-hook nil)
