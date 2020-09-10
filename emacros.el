@@ -665,27 +665,26 @@ named, inserted, or manipulated macro in the current buffer."
                   (after-save-hook nil)
                   (kill-buffer-hook nil))
               (save-excursion
-                (if (or buf (file-exists-p filename))
-                    (progn (if buf
-                               (set-buffer buf)
-                             (find-file filename))
-                           (goto-char (point-min))
-                           (if (search-forward
-                                (format "(emacros-new-macro '%s " old-name)
-                                (point-max) t)
-                               (progn (let ((end (point)))
-                                        (beginning-of-line)
-                                        (delete-region (point) end))
-                                      (insert (format "(emacros-new-macro '%s "
-                                                      new-name))
-                                      (if renamed
-                                          (setq renamed (concat renamed " and ")))
-                                      (setq renamed (concat renamed
-                                                            (if (equal filename local-macro-filename)
-                                                                "local"
-                                                              "global")))
-                                      (save-buffer 0)))
-                           (or buf (kill-buffer (buffer-name)))))))))
+                (when (or buf (file-exists-p filename))
+                  (if buf
+                      (set-buffer buf)
+                    (find-file filename))
+                  (goto-char (point-min))
+                  (when (search-forward (format "(emacros-new-macro '%s " old-name) nil :noerror)
+                    (let ((end (point)))
+                      (beginning-of-line)
+                      (delete-region (point) end))
+                    (insert (format "(emacros-new-macro '%s "
+                                    new-name))
+                    (if renamed
+                        (setq renamed (concat renamed " and ")))
+                    (setq renamed (concat renamed
+                                          (if (equal filename local-macro-filename)
+                                              "local"
+                                            "global")))
+                    (save-buffer 0))
+                  (unless buf
+                    (kill-buffer (buffer-name))))))))
       (if (equal filename global-macro-filename)
           (setq filename nil)
         (setq filename global-macro-filename)
