@@ -464,15 +464,14 @@ Example:
   (message "%s" msg)
   (read-char))
 
-(defun emacros--continue-or-abort (msg continue-question)
+(defun emacros--continue-or-abort (msg &optional continue-question)
   "Warn user. Beep, display MSG, prompt to continue with CONTINUE-QUESTION.
 Both MSG and CONTINUE-QUESTION are strings.
 MSG must end with a period.
-CONTINUE-QUESTION must end with a question mark.
-If user selects to continue the function return t,
-otherwise it raise a \"Aborted\" user-error."
+If specified, CONTINUE-QUESTION must end with a question mark.
+Return t if user selects to continue otherwise raise a \"Aborted\" user-error."
   (ding)
-  (if (y-or-n-p (format "%s  %s " msg continue-question))
+  (if (y-or-n-p (format "%s  %s " msg (or continue-question "")))
       t
     (user-error "Aborted")))
 
@@ -853,12 +852,10 @@ inserted, or manipulated macro in the current buffer."
          (filename              local-macro-filename)
          (buf)
          (deleted))
-    (if (and (setq buf (get-file-buffer filename))
-             (buffer-modified-p buf))
-        (or
-         (ding)
-         (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
-         (user-error "Aborted")))
+    (when (and (setq buf (get-file-buffer filename))
+               (buffer-modified-p buf))
+      (emacros--continue-or-abort
+         "Buffer visiting local macro file modified. Continue? (May save!)?"))
     (while filename
       (emacros--within buf or filename
         do
