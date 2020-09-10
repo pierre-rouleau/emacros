@@ -800,15 +800,14 @@ or manipulated macro in the current buffer."
     (unless name-found-in-source
       (user-error "Macro named %s not found in %s file %s"
                   name (if (= gl ?l) "local" "global") macro-file))
-    (when name-found-in-target
-      (ding)
-      (if (y-or-n-p
-           (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                   name
-                   (if (= gl ?l) "global" "local")
-                   macro-file))
-          (emacros-remove-macro-definition-from-file name buf2 filename2)
-        (user-error "Aborted")))
+    (when (and
+           name-found-in-target
+           (emacros--continue-or-abort (format
+                                        "Macro %s exists in %s macro file %s."
+                                        name (if (= gl ?l) "global" "local")
+                                        macro-file)
+                                       "Overwrite?"))
+      (emacros-remove-macro-definition-from-file name buf2 filename2))
     (setq moved nil)
     (emacros--within buf1 or filename1
       do
