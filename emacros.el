@@ -405,7 +405,7 @@ and after evaluation the BODY everything is restored: if a new buffer
 had to be opened for visiting FNAME it is killed.
 
 Example:
-  (emacros-with buf filename
+  (emacros--with buf filename
     do
      (some-call some-data)
      (some-other-call some-other-data)) "
@@ -1164,18 +1164,11 @@ Overwrite existing definition if requested."
 
 (defun emacros-remove-macro-definition-from-file (symbol buf filename)
   "Remove first definition of macro named SYMBOL from FILENAME."
-  (if (and (not buf) (not (file-exists-p filename)))
-      nil
-    (let ((find-file-hook nil)
-          (emacs-lisp-mode-hook nil)
-          (after-save-hook nil)
-          (kill-buffer-hook nil))
-      (save-excursion
-        (if buf (set-buffer buf)
-          (find-file filename))
-        (emacros-remove-macro-definition symbol)
-        (save-buffer 0)
-        (or buf (kill-buffer (buffer-name)))))))
+  (when (or buf (file-exists-p filename))
+    (emacros--with buf filename
+      do
+      (emacros-remove-macro-definition symbol)
+      (save-buffer 0))))
 
 (defun emacros-remove-macro-definition (symbol)
   "Remove definition of macro named SYMBOL from current buffer."
