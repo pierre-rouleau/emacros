@@ -663,35 +663,22 @@ named, inserted, or manipulated macro in the current buffer."
               (emacros-remove-macro-definition-from-file new-name buf filename)
             (setq skip-this-file t)))
         (if (not skip-this-file)
-;; ---------------------------------------------------------------------------
-            (let ((find-file-hook nil)
-                  (emacs-lisp-mode-hook nil)
-                  (after-save-hook nil)
-                  (kill-buffer-hook nil))
-              (save-excursion
-                (when (or buf (file-exists-p filename))
-                  (if buf
-                      (set-buffer buf)
-                    (find-file filename))
-;; ---------------------------------------------------------------------------
-                  (goto-char (point-min))
-                  (when (search-forward (format "(emacros-new-macro '%s " old-name) nil :noerror)
-                    (let ((end (point)))
-                      (beginning-of-line)
-                      (delete-region (point) end))
-                    (insert (format "(emacros-new-macro '%s "
-                                    new-name))
-                    (if renamed
-                        (setq renamed (concat renamed " and ")))
-                    (setq renamed (concat renamed
-                                          (if (equal filename local-macro-filename)
-                                              "local"
-                                            "global")))
-                    (save-buffer 0))
-;; ---------------------------------------------------------------------------
-                  (unless buf
-                    (kill-buffer (buffer-name))))))))
-;; ---------------------------------------------------------------------------
+            (emacros--within buf or filename
+              do
+              (goto-char (point-min))
+              (when (search-forward (format "(emacros-new-macro '%s " old-name) nil :noerror)
+                (let ((end (point)))
+                  (beginning-of-line)
+                  (delete-region (point) end))
+                (insert (format "(emacros-new-macro '%s "
+                                new-name))
+                (if renamed
+                    (setq renamed (concat renamed " and ")))
+                (setq renamed (concat renamed
+                                      (if (equal filename local-macro-filename)
+                                          "local"
+                                        "global")))
+                (save-buffer 0)))))
       (if (equal filename global-macro-filename)
           (setq filename nil)
         (setq filename global-macro-filename)
