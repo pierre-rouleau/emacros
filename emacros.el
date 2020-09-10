@@ -65,10 +65,10 @@
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--is-overwrite-needed-and-allowed'
 ;;     - `emacros--is-kbmacro-in'
-;;       @ `emacros--with'
+;;       @ `emacros--within'
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--write-kbmacro-to'
-;;      @ `emacros--with'
+;;      @ `emacros--within'
 
 ;; * `emacros-rename-macro'
 ;;   - `emacros-read-macro-name1'
@@ -397,20 +397,21 @@ This function is stored inside the emacros macro storage files."
 ;; Buffer/File protection macro
 ;; ----------------------------
 
-(defmacro emacros--with (mbuf fname do &rest body)
+(defmacro emacros--within (mbuf or fname do &rest body)
   "Evaluate BODY in the keyboard macro buffer MBUF or a new one for FNAME.
-The DO argument is a cosmetic marker.
+The OR and DO argument are cosmetic markers.
 The file-saving hooks are disabled for the duration of the evaluation
 and after evaluation the BODY everything is restored: if a new buffer
 had to be opened for visiting FNAME it is killed.
 
 Example:
-  (emacros--with buf filename
+  (emacros--within buf or filename
     do
      (some-call some-data)
      (some-other-call some-other-data)) "
-  (declare (indent 2))
-  (ignore do)         ; prevent byte-compile warning about unused 'do'
+  (declare (indent 3))
+  ;; prevent byte-compile warning about unused cosmetic arguments
+  (ignore or do)
   `(if (or ,mbuf (file-exists-p ,fname))
        (let ((find-file-hook nil)
              (emacs-lisp-mode-hook nil)
@@ -503,7 +504,7 @@ and filepath is the absolute path and name of the keyboard definition file."
   "Check if KBMACRO is present in either BUF or FILENAME.
 Return t if it is, nil otherwise."
   (let ((macro-name-exists nil))
-    (emacros--with buf filename
+    (emacros--within buf or filename
       do
       (goto-char (point-min))
       (when (search-forward
@@ -543,7 +544,7 @@ issue a user-error when user wants to abort."
 Store it in either buffer BUF or file FILENAME.
 Allow OVERWRITE is requested."
   ;; disable hooks while writing to file
-  (emacros--with buf filename
+  (emacros--within buf or filename
     do
     (emacros-insert-kbd-macro macro-name macro-code overwrite)
     ;; prevent backup
@@ -639,7 +640,7 @@ named, inserted, or manipulated macro in the current buffer."
          (error "Aborted")))
     (while filename
       (when (or buf (file-exists-p filename))
-        (emacros--with buf filename
+        (emacros--within buf or filename
           do
           (goto-char (point-min))
           (when (search-forward
@@ -1171,7 +1172,7 @@ Overwrite existing definition if requested."
 (defun emacros-remove-macro-definition-from-file (symbol buf filename)
   "Remove first definition of macro named SYMBOL from FILENAME."
   (when (or buf (file-exists-p filename))
-    (emacros--with buf filename
+    (emacros--within buf or filename
       do
       (emacros-remove-macro-definition symbol)
       (save-buffer 0))))
