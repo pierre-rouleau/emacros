@@ -636,8 +636,7 @@ named, inserted, or manipulated macro in the current buffer."
          (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
          (error "Aborted")))
     (while filename
-      (when (or buf
-                (file-exists-p filename))
+      (when (or buf (file-exists-p filename))
         (emacros--with buf filename
           do
           (goto-char (point-min))
