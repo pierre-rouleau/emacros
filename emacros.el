@@ -699,14 +699,10 @@ named, inserted, or manipulated macro in the current buffer."
         (setq old-name-found nil)
         (setq new-name-found nil)
         (setq skip-this-file nil)
-        (if (and (setq buf (get-file-buffer filename))
-                 (buffer-modified-p buf))
-            (or
-             (ding)
-             (y-or-n-p
-              (format
-               "Buffer visiting global macro file modified.  Continue? (May save!)? "))
-             (user-error "Aborted")))))
+        (when (and (setq buf (get-file-buffer filename))
+                   (buffer-modified-p buf))
+          (emacros--continue-or-abort
+           "Buffer visiting global macro file modified.  Continue? (May save!)? "))))
     (or renamed
         (user-error
          "Macro named %s not found or skipped at user request in current local and global file %s: no action taken"
