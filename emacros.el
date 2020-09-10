@@ -762,24 +762,15 @@ or manipulated macro in the current buffer."
                (setq filename2 (emacros--db-mode-filepath :global)))
       (setq filename1 (expand-file-name macro-file emacros-global-dirpath))
       (setq filename2 (expand-file-name macro-file default-directory)))
-    (if (and (setq buf1 (get-file-buffer filename1))
-             (buffer-modified-p buf1))
-        (or
-         (ding)
-         (y-or-n-p
-          (format
-           "Buffer visiting %s macro file modified.  Continue? (May save!)? "
-           (if (= gl ?g) "global" "local")))
-         (user-error "Aborted")))
-    (if (and (setq buf2 (get-file-buffer filename2))
-             (buffer-modified-p buf2))
-        (or
-         (ding)
-         (y-or-n-p
-          (format
-           "Buffer visiting %s macro file modified.  Continue? (May save!)? "
-           (if (= gl ?g) "local" "global")))
-         (user-error "Aborted")))
+
+    (setq buf1 (get-file-buffer filename1))
+    (setq buf2 (get-file-buffer filename2))
+    (when (or (and buf1 (buffer-modified-p buf1))
+              (and buf2 (buffer-modified-p buf2)))
+      (emacros--continue-or-abort
+       (format
+        "Buffer visiting %s macro file modified.  Continue? (May save!)? "
+        (if (= gl ?g) "global" "local"))))
     (emacros--within buf1 or filename1
       do
       (goto-char (point-min))
