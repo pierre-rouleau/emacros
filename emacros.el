@@ -653,12 +653,10 @@ named, inserted, or manipulated macro in the current buffer."
     (setq local-macro-filename  (emacros--db-mode-filepath))
     (setq global-macro-filename (emacros--db-mode-filepath :global))
     (setq filename local-macro-filename)
-    (if (and (setq buf (get-file-buffer filename))
-             (buffer-modified-p buf))
-        (or
-         (ding)
-         (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
-         (user-error "Aborted")))
+    (when (and (setq buf (get-file-buffer filename))
+               (buffer-modified-p buf))
+      (emacros--continue-or-abort
+       "Buffer visiting local macro file modified.  Continue? (May save!)? "))
     (while filename
       (when (or buf (file-exists-p filename))
         (emacros--within buf or filename
