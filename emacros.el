@@ -642,11 +642,9 @@ named, inserted, or manipulated macro in the current buffer."
          (skip-this-file nil)
          (renamed))
     (while (equal new-name old-name)
-      (or (ding)
-          (y-or-n-p
+      (emacros--continue-or-abort
            (format "%s and %s are identical.  Repeat choice for new name? "
                    old-name new-name))
-          (user-error "Aborted"))
       (setq new-name
             (emacros-read-macro-name1
              (format "Replace macroname %s with: " old-name) old-name)))
