@@ -607,7 +607,7 @@ Prompts for an existing name of a keyboard macro and a new name
 to replace it.  Default for the old name is the name of the most recently
 named, inserted, or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
+  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let* ((old-name (emacros-read-macro-name2 "Replace macroname"))
          (new-name (emacros-read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
@@ -625,7 +625,7 @@ named, inserted, or manipulated macro in the current buffer."
           (y-or-n-p
            (format "%s and %s are identical.  Repeat choice for new name? "
                    old-name new-name))
-          (error "Aborted"))
+          (user-error "Aborted"))
       (setq new-name
             (emacros-read-macro-name1
              (format "Replace macroname %s with: " old-name) old-name)))
@@ -637,7 +637,7 @@ named, inserted, or manipulated macro in the current buffer."
         (or
          (ding)
          (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
-         (error "Aborted")))
+         (user-error "Aborted")))
     (while filename
       (when (or buf (file-exists-p filename))
         (emacros--within buf or filename
@@ -692,9 +692,9 @@ named, inserted, or manipulated macro in the current buffer."
              (y-or-n-p
               (format
                "Buffer visiting global macro file modified.  Continue? (May save!)? "))
-             (error "Aborted")))))
+             (user-error "Aborted")))))
     (or renamed
-        (error
+        (user-error
          "Macro named %s not found or skipped at user request in current local and global file %s: no action taken"
          old-name macro-file))
     (fset new-name (symbol-function old-name))
@@ -716,9 +716,9 @@ macro from the current local macro file to the global one or
 vice versa. Default is the name of the most recently saved, inserted,
 or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
+  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (if (emacros-same-dirname default-directory emacros-global-dirpath)
-      (error "Local = global in this buffer"))
+      (user-error "Local = global in this buffer"))
   (let ((name (emacros-read-macro-name2 "Move macro named"))
         (macro-file (emacros--db-mode-filename))
         (gl)
@@ -760,7 +760,7 @@ or manipulated macro in the current buffer."
           (format
            "Buffer visiting %s macro file modified.  Continue? (May save!)? "
            (if (= gl ?g) "global" "local")))
-         (error "Aborted")))
+         (user-error "Aborted")))
     (if (and (setq buf2 (get-file-buffer filename2))
              (buffer-modified-p buf2))
         (or
@@ -769,7 +769,7 @@ or manipulated macro in the current buffer."
           (format
            "Buffer visiting %s macro file modified.  Continue? (May save!)? "
            (if (= gl ?g) "local" "global")))
-         (error "Aborted")))
+         (user-error "Aborted")))
     (let ((find-file-hook nil)
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
@@ -796,7 +796,7 @@ or manipulated macro in the current buffer."
                        (setq name-found-in-target t))
                    (or buf2 (kill-buffer (buffer-name)))))))
     (if (not name-found-in-source)
-        (error "Macro named %s not found in %s file %s"
+        (user-error "Macro named %s not found in %s file %s"
                name (if (= gl ?l) "local" "global") macro-file))
     (if name-found-in-target
         (progn (ding)
@@ -806,7 +806,7 @@ or manipulated macro in the current buffer."
                             (if (= gl ?l) "global" "local")
                             macro-file))
                    (emacros-remove-macro-definition-from-file name buf2 filename2)
-                 (error "Aborted"))))
+                 (user-error "Aborted"))))
     (let ((find-file-hook nil)
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
@@ -837,7 +837,7 @@ or manipulated macro in the current buffer."
                    (save-buffer 0)))
         (or buf1 (kill-buffer buffername))))
     (if (null moved)
-        (error "Macro named %s not found in %s file %s"
+        (user-error "Macro named %s not found in %s file %s"
                name (if (= gl ?l) "local" "global") macro-file)
       (setq emacros-last-name name)
       (setq emacros-last-saved name)
@@ -852,7 +852,7 @@ or manipulated macro in the current buffer."
 The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
+  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let* ((name (emacros-read-macro-name2 "Remove macro named"))
          (macro-file            (emacros--db-mode-filename))
          (local-macro-filename  (emacros--db-mode-filepath))
@@ -865,7 +865,7 @@ inserted, or manipulated macro in the current buffer."
         (or
          (ding)
          (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
-         (error "Aborted")))
+         (user-error "Aborted")))
     (while filename
       (let ((find-file-hook nil)
             (emacs-lisp-mode-hook nil)
@@ -904,9 +904,9 @@ inserted, or manipulated macro in the current buffer."
              (y-or-n-p
               (format
                "Buffer visiting global macro file modified.  Continue? (May save!)? "))
-             (error "Aborted")))))
+             (user-error "Aborted")))))
     (if (not deleted)
-        (error
+        (user-error
          "Macro named %s not found in current file(s) %s: no action taken"
          name macro-file))
     (fmakunbound name)
@@ -924,7 +924,7 @@ inserted, or manipulated macro in the current buffer."
 Default is the most recently saved, inserted, or manipulated macro
 in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
+  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let ((name (emacros-read-macro-name2 "Execute macro named")))
     (setq emacros-last-name name)
     (execute-kbd-macro name)))
@@ -936,7 +936,7 @@ Backspace acts normally, \\[keyboard-quit] exits, RET does rudimentary completio
 Default is the most recently saved, inserted, or manipulated macro
 in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
+  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let ((prompt (format "Auto-execute macro named%s: "
                         (if (emacros--macrop emacros-last-name)
                             (format " (default %s)" emacros-last-name)
@@ -1045,7 +1045,7 @@ created during present session."
   (let* ((mlist (emacros-make-macro-list))
          (next-macro-name (car mlist))
          (next-macro-definition (if next-macro-name (symbol-function next-macro-name) nil)))
-    (or next-macro-name (error "No named kbd-macros defined"))
+    (or next-macro-name (user-error "No named kbd-macros defined"))
     (with-output-to-temp-buffer "*Help*"
       (princ "Below are all currently defined keyboard macros.\n")
       (princ "Use emacros-show-macro-names to see just the macro names.\n\n")
@@ -1097,7 +1097,7 @@ usual two column format."
          (current-macro-name (car mlist))
          (current-column 0)
          (padding-width 0))
-    (or current-macro-name (error "No named kbd-macros defined"))
+    (or current-macro-name (user-error "No named kbd-macros defined"))
     (with-output-to-temp-buffer "*Help*"
       (princ "Below are the names of all currently defined macros.\n")
       (princ "Use emacros-show-macros to see the macro names with their definitions.\n\n")
@@ -1119,7 +1119,7 @@ usual two column format."
         (setq current-macro-name (car mlist)))
       (if (not arg)(terpri))
       (princ " ") ; Funny, RMS is such a stickler for newline at EOF, and
-                  ; his nown printstream drops newlines at the end unless you
+                  ; his own printstream drops newlines at the end unless you
                   ; follow it by something else.
     (help-print-return-message))))
 
