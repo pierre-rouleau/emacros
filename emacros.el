@@ -849,33 +849,24 @@ inserted, or manipulated macro in the current buffer."
          (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
          (user-error "Aborted")))
     (while filename
-      (let ((find-file-hook nil)
-            (emacs-lisp-mode-hook nil)
-            (after-save-hook nil)
-            (kill-buffer-hook nil))
-        (save-excursion
-          (if (or buf (file-exists-p filename))
-              (progn (if buf
-                         (set-buffer buf)
-                       (find-file filename))
-                     (goto-char (point-min))
-                     (if (search-forward
-                          (format "(emacros-new-macro '%s " name)
-                          (point-max) t)
-                         (progn (beginning-of-line)
-                                (let ((beg (point)))
-                                  (search-forward "\n(emacros-new-macro '"
-                                                  (point-max) 'move)
-                                  (beginning-of-line)
-                                  (delete-region beg (point)))
-                                (if deleted
-                                    (setq deleted (concat deleted " and ")))
-                                (setq deleted (concat deleted
-                                                      (if (equal filename local-macro-filename)
-                                                          "local"
-                                                        "global")))
-                                (save-buffer 0)))
-                     (or buf (kill-buffer (buffer-name)))))))
+      (emacros--within buf or filename
+        do
+        (goto-char (point-min))
+        (when  (search-forward (format "(emacros-new-macro '%s " name)
+                               (point-max) t)
+          (beginning-of-line)
+          (let ((beg (point)))
+            (search-forward "\n(emacros-new-macro '"
+                            (point-max) 'move)
+            (beginning-of-line)
+            (delete-region beg (point)))
+          (when deleted
+            (setq deleted (concat deleted " and ")))
+          (setq deleted (concat deleted
+                                (if (equal filename local-macro-filename)
+                                    "local"
+                                  "global")))
+          (save-buffer 0)))
       (if (equal filename global-macro-filename)
           (setq filename nil)
         (setq filename global-macro-filename)
