@@ -638,28 +638,18 @@ named, inserted, or manipulated macro in the current buffer."
     (while filename
       (when (or buf
                 (file-exists-p filename))
-        ;; ---------------------------------------------------------------------------
-        (let ((find-file-hook nil)
-              (emacs-lisp-mode-hook nil)
-              (after-save-hook nil)
-              (kill-buffer-hook nil))
-          (save-excursion
-            (progn (if buf
-                       (set-buffer buf)
-                     (find-file filename))
-                   (goto-char (point-min))
-                   (if (search-forward
-                        (format "(emacros-new-macro '%s " old-name)
-                        (point-max) t)
-                       (setq old-name-found t))
-                   (goto-char (point-min))
-                   (if (search-forward
-                        (format "(emacros-new-macro '%s " new-name)
-                        (point-max) t)
-                       (setq new-name-found t))
-                   (unless buf
-                     (kill-buffer (buffer-name)))))))
-      ;; ---------------------------------------------------------------------------
+        (emacros--with buf filename
+          do
+          (goto-char (point-min))
+          (when (search-forward
+                 (format "(emacros-new-macro '%s " old-name)
+                 (point-max) t)
+            (setq old-name-found t))
+          (goto-char (point-min))
+          (when (search-forward
+                 (format "(emacros-new-macro '%s " new-name)
+                 (point-max) t)
+            (setq new-name-found t))))
       (if old-name-found
           (progn (if new-name-found
                      (progn (ding)
