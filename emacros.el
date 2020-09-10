@@ -402,7 +402,7 @@ move point to the end of searchable buffer area."
    (point-max)
    t))
 
-(defun emacros--search-for-new-macro-form ()
+(defun emacros--move-after-new-macro-form ()
   "Search for the next definition of a keyboard macro.
 Move point before its code if found, move to the end of buffer is not found."
   (search-forward "\n(emacros-new-macro '"
@@ -818,7 +818,7 @@ or manipulated macro in the current buffer."
         (setq moved t)
         (beginning-of-line)
         (let ((beg (point)))
-          (emacros--search-for-new-macro-form)
+          (emacros--move-after-new-macro-form)
           (beginning-of-line)
           (let ((end (point)))
             (save-excursion
@@ -867,7 +867,7 @@ inserted, or manipulated macro in the current buffer."
         (when (emacros--search-for name)
           (beginning-of-line)
           (let ((beg (point)))
-            (emacros--search-for-new-macro-form)
+            (emacros--move-after-new-macro-form)
             (beginning-of-line)
             (delete-region beg (point)))
           (when deleted
