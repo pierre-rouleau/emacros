@@ -876,14 +876,10 @@ inserted, or manipulated macro in the current buffer."
       (if (equal filename global-macro-filename)
           (setq filename nil)
         (setq filename global-macro-filename)
-        (if (and (setq buf (get-file-buffer filename))
-                 (buffer-modified-p buf))
-            (or
-             (ding)
-             (y-or-n-p
-              (format
-               "Buffer visiting global macro file modified.  Continue? (May save!)? "))
-             (user-error "Aborted")))))
+        (when (and (setq buf (get-file-buffer filename))
+                   (buffer-modified-p buf))
+          (emacros--continue-or-abort
+           "Buffer visiting global macro file modified. Continue? (May save!)?"))))
     (if (not deleted)
         (user-error
          "Macro named %s not found in current file(s) %s: no action taken"
