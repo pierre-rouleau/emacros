@@ -385,13 +385,36 @@ Supports minibuffer completion."
     (car (read-from-string inp))))
 
 ;; ---------------------------------------------------------------------------
+;; Keyboard Macro code management utilities
+;; ----------------------------------------
 
 (defun emacros-new-macro (name macro-text)
-  "Assigns to the symbol NAME the function definition MACRO-TEXT.
-- NAME       := macro name symbol
-- MACRO-TEXT := string; the recorded macro keys.
-This function is stored inside the emacros macro storage files."
+  "Assigns to the symbol NAME the function definition MACRO-TEXT."
   (fset name macro-text))
+
+(defun emacros--search-for (kbmacro)
+  "Return non-nil if the KBMACRO is defined in current buffer, nil otherwise.
+If KBMACRO is found, move point to the beginning of its code and return point.
+If KBMACRO is not found, return nil. And if MOVE-TO-END-ON-FAIL is non-nil
+move point to the end of searchable buffer area."
+  (search-forward
+   (format "(emacros-new-macro '%s " kbmacro)
+   (point-max)
+   t))
+
+(defun emacros--search-for-new-macro-form ()
+  "Search for the next definition of a keyboard macro.
+Move point before its code if found, move to the end of buffer is not found."
+  (search-forward "\n(emacros-new-macro '"
+                  (point-max) 'move))
+
+(defun emacros--insert-kbmacro (name &optional code)
+  "Insert Emacs Lisp code to define kbmacro NAME, optionally with CODE.
+If CODE is nil, just insert the beginning of the Emacs Lisp form that
+identifies the macro name, but not its code."
+  (insert (format "(emacros-new-macro '%s " name))
+  (when code
+    (insert code)))                     ;TODO complete!!
 
 ;; ---------------------------------------------------------------------------
 ;; Buffer/File protection macro
@@ -507,8 +530,7 @@ Return t if it is, nil otherwise."
     (emacros--within buf or filename
       do
       (goto-char (point-min))
-      (when (search-forward
-             (format "(emacros-new-macro '%s " kbmacro) nil :no-error)
+      (when (emacros--search-for kbmacro)
         (setq macro-name-exists t)))
     macro-name-exists))
 
@@ -643,14 +665,10 @@ named, inserted, or manipulated macro in the current buffer."
         (emacros--within buf or filename
           do
           (goto-char (point-min))
-          (when (search-forward
-                 (format "(emacros-new-macro '%s " old-name)
-                 (point-max) t)
+          (when (emacros--search-for old-name)
             (setq old-name-found t))
           (goto-char (point-min))
-          (when (search-forward
-                 (format "(emacros-new-macro '%s " new-name)
-                 (point-max) t)
+          (when (emacros--search-for new-name)
             (setq new-name-found t))))
       (when old-name-found
         (when new-name-found
@@ -666,12 +684,11 @@ named, inserted, or manipulated macro in the current buffer."
             (emacros--within buf or filename
               do
               (goto-char (point-min))
-              (when (search-forward (format "(emacros-new-macro '%s " old-name) nil :noerror)
+              (when (emacros--search-for old-name)
                 (let ((end (point)))
                   (beginning-of-line)
                   (delete-region (point) end))
-                (insert (format "(emacros-new-macro '%s "
-                                new-name))
+                (emacros--insert-kbmacro new-name)
                 (if renamed
                     (setq renamed (concat renamed " and ")))
                 (setq renamed (concat renamed
@@ -773,17 +790,13 @@ or manipulated macro in the current buffer."
     (emacros--within buf1 or filename1
       do
       (goto-char (point-min))
-      (if (search-forward
-           (format "(emacros-new-macro '%s " name)
-           (point-max) t)
-          (setq name-found-in-source t)))
+      (when (emacros--search-for name)
+        (setq name-found-in-source t)))
     (emacros--within buf2 or filename2
       do
       (goto-char (point-min))
-      (if (search-forward
-           (format "(emacros-new-macro '%s " name)
-           (point-max) t)
-          (setq name-found-in-target t)))
+      (when (emacros--search-for name)
+        (setq name-found-in-target t)))
     (unless name-found-in-source
       (user-error "Macro named %s not found in %s file %s"
                   name (if (= gl ?l) "local" "global") macro-file))
@@ -801,12 +814,11 @@ or manipulated macro in the current buffer."
       do
       (setq buffername (buffer-name))
       (goto-char (point-min))
-      (when (search-forward (format "(emacros-new-macro '%s " name) nil :noerror)
+      (when (emacros--search-for name)
         (setq moved t)
         (beginning-of-line)
         (let ((beg (point)))
-          (search-forward "\n(emacros-new-macro '"
-                          (point-max) 'move)
+          (emacros--search-for-new-macro-form)
           (beginning-of-line)
           (let ((end (point)))
             (save-excursion
@@ -852,12 +864,10 @@ inserted, or manipulated macro in the current buffer."
       (emacros--within buf or filename
         do
         (goto-char (point-min))
-        (when  (search-forward (format "(emacros-new-macro '%s " name)
-                               (point-max) t)
+        (when (emacros--search-for name)
           (beginning-of-line)
           (let ((beg (point)))
-            (search-forward "\n(emacros-new-macro '"
-                            (point-max) 'move)
+            (emacros--search-for-new-macro-form)
             (beginning-of-line)
             (delete-region beg (point)))
           (when deleted
