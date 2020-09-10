@@ -39,25 +39,38 @@
 
 
 
-;; The following describes the emacros commands ('*') and functions ('-')
-;; code hierarchy.
+;; The following describes the emacros commands ('*'), functions ('-')
+;; and interactive functions ('+') code hierarchy.
 ;;
-;; - `emacros-macrop'
-;; - `emacros-processed-mode-name'
-;; - `emacros-db-mode-filename'
+;; - `emacros-dirname-expanded'
+;; - `emacros-same-dirname'
+;; - `emacros--macrop'
+;; - `emacros--processed-mode-name'
+
+;; - `emacros--db-mode-filename'
+;; - `emacros--db-mode-filepath'
+;; - `emacros--db-mode-str'
 
 ;; - `emacros-read-macro-name2'
-;;   * `emacros-exit-macro-read2'
+;;   + `emacros--exit-macro-read2'
+
 ;; - `emacros-new-macro'
 
 ;; * `emacros-name-last-kbd-macro-add'
-;;   - `emacros-prompt-for-overwriting-macro-definition'
 ;;   - `emacros-read-macro-name1'
-;;     * `emacros-exit-macro-read1'
+;;     + `emacros--exit-macro-read1'
+;;   - `emacros--select-scope'
+;;     - `emacros--waitforkey'
+;;     - `emacros--warn'
+;;     - `emacros--continue-or-abort'
+;;   - `emacros--is-overwrite-needed-and-allowed'
+;;     - `emacros--is-kbmacro-in'
+;;     - `emacros--continue-or-abort'
+;;   - `emacros--write-kbmacro-to'
 
 ;; * `emacros-rename-macro'
 ;;   - `emacros-read-macro-name1'
-;;     * `emacros-exit-macro-read1'
+;;     + `emacros--exit-macro-read1'
 
 ;; * `emacros-move-macro'
 ;; * `emacros-remove-macro'
@@ -78,7 +91,7 @@
 ;;; TODO
 ;; - enhance ability to use the repeat command to execute the last executed
 ;;   emacro quickly. repeat fails at the moment with an error about the
-;;   failed execution of emacros-exit-macro-read2.  However, we can use M-x
+;;   failed execution of emacros--exit-macro-read2.  However, we can use M-x
 ;;   to execute the named emacro and that can be repeated.  So, check if changing
 ;;   the execution code to use execute-extended-command would not solve the
 ;;   problem, but only after reviewing the code related to the 2 prompts.
@@ -93,6 +106,45 @@
 ;;   - allow macros to be byte compiled, to speed up?
 ;;   - package this with true elpa support and all that's needed for true autoload.
 
+;; ---------------------------------------------------------------------------
+;; Customization Support
+;; ---------------------
+
+(defgroup emacros nil
+  "Emacros: organize recorded keyboard macros."
+  :group 'convenience
+  :group 'kmacro)
+
+(defcustom emacros-global-dirpath "~"
+  "Default directory for saving global kbd-macros."
+  :type 'string)
+
+(defcustom emacros-subdir-name ".emacros"
+  "Name of sub-directory for saving the kbd-macro definition files.
+The default is \".emacros\".
+Any valid sub-directory name can be used.
+You can also specify that you do not want to use any sub-directory
+and save all emacros kbd-macro definition files directly in the
+global or local directory.
+NOTE:
+ If you select a sub-directory the files stored in that directory
+ have a visible name that start with \"for-\" and then finish with the major
+ mode name.
+ If you do not select a sub-directory, the emacros keyboard definition
+ files all have a name that starts with \".emacros-for-\" and then end with
+  the major mode name.  Note that they also have a name that starts with a
+  period to hide the file under Unix.
+ "
+  :type '(choice
+          (const :tag "Store all emacros kbd-macro definition files\n\
+directly inside the current (local) or global directory." nil)
+          (string :tag "Store them all inside the following\n\
+sub-directory")))
+
+;; ---------------------------------------------------------------------------
+;; Variables
+;; ---------
+
 (defvar emacros-minibuffer-local-map
   nil
   "Local keymap for reading a new name for a keyboard macro from minibuffer.
@@ -101,22 +153,10 @@ Used by function `emacros-read-macro-name1'.")
 (setq emacros-minibuffer-local-map (make-sparse-keymap))
 
 (define-key emacros-minibuffer-local-map "\C-g" 'abort-recursive-edit)
-(define-key emacros-minibuffer-local-map "\n" 'emacros-exit-macro-read1)
-(define-key emacros-minibuffer-local-map "\r" 'emacros-exit-macro-read1)
+(define-key emacros-minibuffer-local-map "\n" 'emacros--exit-macro-read1)
+(define-key emacros-minibuffer-local-map "\r" 'emacros--exit-macro-read1)
 
-
-(defgroup emacros nil
-  "Emacros: organize recorded keyboard macros."
-  :group 'convenience
-  :group 'kmacro)
-
-(defcustom emacros-global-dir
-  "~/"
-  "*Default directory for saving global kbd-macros."
-  :type 'string)
-
-(defvar-local emacros-glob-loc
-  ?l
+(defvar-local emacros-glob-loc ?l
   "Default for saving named kbd-macros.
 Value ?l means local, value ?g means global.")
 
@@ -143,6 +183,8 @@ Each list is headed by the name of the mode to which it pertains.")
   nil
   "History list variable for reading the name of an existing macro.")
 
+;; ---------------------------------------------------------------------------
+
 (defun emacros-dirname-expanded (dirname)
   "Return DIRNAME string fully expanded with path and single trailing slash."
   (file-name-as-directory (expand-file-name dirname)))
@@ -153,7 +195,7 @@ Each list is headed by the name of the mode to which it pertains.")
    (emacros-dirname-expanded d1)
    (emacros-dirname-expanded d2)))
 
-(defun emacros-macrop (name)
+(defun emacros--macrop (name)
   "Return t if the NAME symbol is the name of a keyboard macro.
 Return nil otherwise."
   (and (null (integerp name))
@@ -162,7 +204,7 @@ Return nil otherwise."
          (or (vectorp sym-fu)
              (stringp sym-fu)))))
 
-(defun emacros-processed-mode-name ()
+(defun emacros--processed-mode-name ()
   "Return a valid mode name.
 For all modes that have a name that ends with \"-mode\", use the name
 without its \"-mode\" suffix.
@@ -180,13 +222,49 @@ not including the first slash."
             (substring mode-name 0 slash-pos-in-mode-name)
           mode-name)))))
 
-(defun emacros-db-mode-filename()
+;; ---------------------------------------------------------------------------
+;; Utilities - Identify name and location of the emacros kbd-macro def files
+;; -------------------------------------------------------------------------
+
+(defun emacros--db-mode-filename ()
   "Return the file name storing emacros for current major mode."
   ;; TODO: store all files inside a .emacros sub-directory.
   (format ".emacros-for-%s.el"
-          (emacros-processed-mode-name)))
+          (emacros--processed-mode-name)))
 
-(defun emacros-exit-macro-read1 ()
+(defun emacros--db-mode-filepath (&optional global)
+  "Return the absolute path for the macro storage file.
+By default returns the local directory name unless GLOBAL
+is non-nil, in which case it returns the global one.
+
+The returned string is:
+- the filename based on the current major mode,
+- inside a \".emacros\" directory,
+- inside the current (local) or global directory as specified
+  by the user option variable `emacros-global-dirpath'."
+  (let* ((dirpath      (if global
+                           emacros-global-dirpath
+                         default-directory))
+         (dirname      (if emacros-subdir-name
+                           (expand-file-name ".emacros" dirpath)
+                         dirpath))
+         (fname-format (if emacros-subdir-name
+                           "for-%s.el"
+                         ".emacros-for-%s.el")))
+    (expand-file-name (format fname-format
+                              (emacros--processed-mode-name))
+                      dirname)))
+
+(defun emacros--db-mode-str (&optional global)
+  "Return \"local\" if GLOBAL is nil otherwise return \"global\"."
+  (if global
+      "global"
+    "local"))
+
+;; ---------------------------------------------------------------------------
+
+
+(defun emacros--exit-macro-read1 ()
   "Terminate the new macro name from the minibuffer.
 The equivalent of function `exit-minibuffer' for reading a new macroname
 from minibuffer.  Used by function `emacros-read-macro-name1'."
@@ -255,9 +333,9 @@ Temporary storage of the last used macro name for the
 minibuffer completion of commands dealing with emacros.
 
 Set by the function `emacros-read-macro-name2' to allow use inside
-its minibuffer completion function `emacros-exit-macro-read2'.")
+its minibuffer completion function `emacros--exit-macro-read2'.")
 
-(defun emacros-exit-macro-read2 ()
+(defun emacros--exit-macro-read2 ()
   "Exit if the minibuffer contain a valid macro name.
 Otherwise try to complete it.
 
@@ -278,12 +356,12 @@ function `emacros-read-macro-name2'."
   "Read an existing name of a kbd-macro, prompting with PROMPT.
 PROMPT must be given without trailing colon and blank.
 Supports minibuffer completion."
-  (let ((emacros--default (emacros-macrop emacros-last-name))
+  (let ((emacros--default (emacros--macrop emacros-last-name))
         (inp))
     (unwind-protect
         (progn
           (substitute-key-definition 'minibuffer-complete-and-exit
-                                     'emacros-exit-macro-read2
+                                     'emacros--exit-macro-read2
                                      minibuffer-local-must-match-map)
           (setq inp (completing-read
                      (format "%s%s: "
@@ -292,14 +370,14 @@ Supports minibuffer completion."
                                  (format " (default %s)" emacros-last-name)
                                ""))
                      obarray            ; collection: all objects
-                     'emacros-macrop    ; predicate: that are macros
+                     'emacros--macrop    ; predicate: that are macros
                      t                  ; require-match: must chose complete element
                      nil                ;
                      'emacros-read-existing-macro-name-history-list
                      (if emacros--default
                          (format "%s" emacros-last-name)
                        ""))))
-      (substitute-key-definition 'emacros-exit-macro-read2
+      (substitute-key-definition 'emacros--exit-macro-read2
                                  'minibuffer-complete-and-exit
                                  minibuffer-local-must-match-map))
     (car (read-from-string inp))))
@@ -313,87 +391,196 @@ Supports minibuffer completion."
 This function is stored inside the emacros macro storage files."
   (fset name macro-text))
 
+;; ---------------------------------------------------------------------------
+;; Store a new keyboard macro recording
+;; ------------------------------------
+
+(defun emacros--waitforkey (msg)
+  "Display message and wait for any key."
+  (message "%s\nPress any key to continue: " msg)
+  (read-char))
+
+(defun emacros--warn (msg)
+  "Warn user.  Beep, display MSG, wait and return typed key."
+  (ding)
+  (message "%s" msg)
+  (read-char))
+
+(defun emacros--continue-or-abort (msg continue-question)
+  "Warn user. Beep, display MSG, prompt to continue with CONTINUE-QUESTION.
+Both MSG and CONTINUE-QUESTION are strings.
+MSG must end with a period.
+CONTINUE-QUESTION must end with a question mark.
+If user selects to continue the function return t,
+otherwise it raise a \"Aborted\" user-error."
+  (ding)
+  (if (y-or-n-p (format "%s  %s " msg continue-question))
+      t
+    (user-error "Aborted")))
+
+(defun emacros--select-scope (prompt-user)
+  "Return the keyboard macro definition type and the storage file.
+Prompt the user if PROMPT-USER is non-nil, otherwise
+use the current settings.
+
+The current settings are identified by:
+- variable `emacros-glob-loc'
+  - location of the current (local) directory or
+    the global directory identified by the user
+    option variable `emacros-??'
+
+Return a (gl . filepath) cons cell, where
+gl is ?g or ?l (identifying global or local)
+and filepath is the absolute path and name of the keyboard definition file."
+  (let* ((gl     emacros-glob-loc)
+         (fname (emacros--db-mode-filepath (= gl ?g))))
+    (if prompt-user
+        ;; request to let user select the file
+        (setq fname
+              (expand-file-name
+               (read-file-name
+                (format "Write macro to file (default %s): " fname)
+                default-directory
+                fname)))
+      ;; no request to explicitly select a file
+      (let ((cursor-in-echo-area t))
+        (if (emacros-same-dirname default-directory emacros-global-dirpath)
+            ;; in global directory: use global
+            (progn
+              (emacros--waitforkey
+               "Using global as current = global for this buffer.")
+              (setq gl ?g))
+          ;; not in global directory: make user select the scope
+          (message "Save as local or global macro? (l/g, default %s) "
+                   (emacros--db-mode-str (= emacros-glob-loc ?g)))
+          (setq gl (read-char))
+          (while (not (memq gl (list ?l ?g ?\r)))
+            (setq gl
+                  (emacros--warn
+                   (format
+                    "Please answer l for local, g for global, or RET for %s: "
+                    (emacros--db-mode-str (= emacros-glob-loc ?g))))))
+        (when (= gl ?\r)
+          (setq gl emacros-glob-loc))
+        (setq fname (emacros--db-mode-filepath (= gl ?g))))))
+      (cons gl fname)))
+
+(defun emacros--is-kbmacro-in (kbmacro buf filename)
+  "Check if KBMACRO is present in either BUF or FILENAME.
+Return t if it is, nil otherwise."
+  (let ((macro-name-exists nil)
+        ;; temporary disable some hooks
+        (find-file-hook nil)
+        (emacs-lisp-mode-hook nil)
+        (after-save-hook nil)
+        (kill-buffer-hook nil))
+    (save-excursion
+      (if buf
+          (set-buffer buf)
+        (find-file filename))
+      (goto-char (point-min))
+      (when (search-forward
+             (format "(emacros-new-macro '%s " kbmacro) nil :no-error)
+          (setq macro-name-exists t))
+      (unless  buf
+        (kill-buffer (buffer-name))))
+    macro-name-exists))
+
+(defun emacros--is-overwrite-needed-and-allowed
+    (macro-file buf kbmacro gl use-custom-file filename)
+  "Check if KBMACRO definition is in a MACRO-FILE or buffer BUF.
+If so, prompt for overwriting it.
+Return t if user want to overwrite existing file/buffer,
+nil if overwrite is not allowed,
+issue a user-error when user wants to abort."
+  (if (and (not buf)
+           (not (file-exists-p filename)))
+      ;; no buffer & no file: no need to overwrite
+      nil
+    ;; buffer or file exist: check if macro name exists
+    (if (emacros--is-kbmacro-in kbmacro buf filename)
+        ;; If macro already exist, check if user wants to overwrite
+        ;; and return t to overwrite, abort if not.
+        ;; If macro does not exist return nil.
+        (emacros--continue-or-abort
+         (format "Macro %s exists in %s"
+                 kbmacro
+                 (if use-custom-file
+                     (format "file %s" filename)
+                   (format "%s macro file %s"
+                           (emacros--db-mode-str (= gl ?g))
+                           macro-file)))
+         "Overwrite?"))))
+
+(defun emacros--write-kbmacro-to
+    (macro-name macro-code buf filename overwrite)
+  "Write keyboard macro of name MACRO-NAME and code MACRO-CODE.
+Store it in either buffer BUF or file FILENAME.
+Allow OVERWRITE is requested."
+  ;; disable hooks while writing to file
+  (let ((find-file-hook nil)
+        (emacs-lisp-mode-hook nil)
+        (after-save-hook nil)
+        (kill-buffer-hook nil))
+    (save-excursion
+      (if buf
+          (set-buffer buf)
+        (find-file filename))
+      (emacros-insert-kbd-macro macro-name macro-code overwrite)
+      (save-buffer 0) ; no backup
+      (unless buf
+        (kill-buffer (buffer-name))))))
+
 (defun emacros-name-last-kbd-macro-add (&optional arg)
   "Assigns a name to the last keyboard macro defined.
 Accepts letters and digits as well as \"_\" and \"-\".
 Requires at least one non-numerical character.
 Prompts for a choice betwen local and global saving.
-With ARG, the user is prompted  for the name of a file
+With ARG, prompt the user for the name of a file
 to save to. Default is the last location that was saved
 or moved to in the current buffer."
   (interactive "P")
-  (or last-kbd-macro
-      (error "No kbd-macro defined"))
-  (let ((symbol (emacros-read-macro-name1 "Name for last kbd-macro: "))
-        (macro-file (emacros-db-mode-filename))
-        (filename)
-        (gl)
-        (buf)
-        (overwrite-existing-macro-definition nil))
-    (if (= emacros-glob-loc ?g)
-        (setq filename (expand-file-name macro-file emacros-global-dir))
-      (setq filename (expand-file-name macro-file default-directory)))
-    (if arg (setq filename
-                  (expand-file-name
-                   (read-file-name (concat "Write macro to file (default "
-                                           filename "): ")
-                                   default-directory filename)))
-      (if (emacros-same-dirname default-directory emacros-global-dir)
-          (let ((cursor-in-echo-area t))
-            (message
-             "Local = global in this buffer. Press any key to continue: ")
-            (read-char)
-            (setq gl emacros-glob-loc))
-        (let ((cursor-in-echo-area t))
-          (message "Save as local or global macro? (l/g, default %s) "
-                   (if (= emacros-glob-loc ?g) "global" "local"))
-          (setq gl (read-char))
-          (while (not (memq gl (list ?l ?g ?\r)))
-            (ding)
-            (message
-             "Please answer l for local, g for global, or RET for %s: "
-             (if (= emacros-glob-loc ?g) "global" "local"))
-            (setq gl (read-char))))
-        (and (= gl ?\r) (setq gl emacros-glob-loc))
-        (if (= gl ?g)
-            (setq filename (expand-file-name macro-file emacros-global-dir))
-          (setq filename (expand-file-name macro-file default-directory)))))
-    (if (and (setq buf (get-file-buffer filename))
-             (buffer-modified-p buf))
+  (unless last-kbd-macro
+      (user-error "No kbd-macro defined!"))
+  (let* ((symbol     (emacros-read-macro-name1 "Name for last kbd-macro: "))
+         (macro-file (emacros--db-mode-filename))
+         (gl.fname   (emacros--select-scope arg))
+         (gl         (car gl.fname))
+         (filename   (cdr gl.fname))
+         (buf        (get-file-buffer filename)))
+    (when (and buf
+               (buffer-modified-p buf))
+      ;; User is about to store the definition of a new macro in a file
+      ;; that is opened in Emacs with unsaved modifications.
+      ;; Warn the user and allow aborting.
+      (emacros--continue-or-abort
+       (format
+        "Buffer visiting %s modified."
         (if arg
-            (or (ding)
-                (y-or-n-p
-                 (format
-                  "Buffer visiting file %s modified.  Continue? (Will save!)? "
-                  filename))
-                (error "Aborted"))
-          (or (ding)
-              (y-or-n-p
-               (format "Buffer visiting %s macro file modified.  Continue? (Will save!)? " (if (= gl ?l) "local" "global")))
-              (error "Aborted"))))
-    (setq overwrite-existing-macro-definition
-          (emacros-prompt-for-overwriting-macro-definition macro-file buf symbol gl arg filename))
-    (let ((find-file-hook nil)
-          (emacs-lisp-mode-hook nil)
-          (after-save-hook nil)
-          (kill-buffer-hook nil))
-      (save-excursion
-        (if buf (set-buffer buf)
-          (find-file filename))
-        (emacros-insert-kbd-macro symbol last-kbd-macro overwrite-existing-macro-definition)
-        (save-buffer 0)
-        (or buf (kill-buffer (buffer-name)))))
-    (if arg
-        (message "Wrote definition of %s to file %s" symbol filename)
-      (message "Wrote definition of %s to %s file %s"
-               symbol
-               (if (= gl ?g) "global" "local")
-               macro-file)
+            (format "file %s" filename)
+          (format "%s macro file" (emacros--db-mode-str (= gl ?g)))))
+       "Continue? (Will save!)?"))
+    (emacros--write-kbmacro-to symbol
+                               last-kbd-macro
+                               buf
+                               filename
+                               (emacros--is-overwrite-needed-and-allowed
+                                macro-file buf symbol gl arg filename))
+    (message "Wrote definition of %s to %s"
+             symbol
+             (if arg
+                 (format "file %s" filename)
+               (format "%s file %s"
+                       (emacros--db-mode-str (= gl ?g))
+                       (emacros--db-mode-filepath (= gl ?g)))))
+    ;; Store all info.
+    (unless arg
       (setq emacros-glob-loc gl))
     (fset symbol last-kbd-macro)
     (setq emacros-last-name symbol)
-    (if arg (setq emacros-last-saved nil)
-      (setq emacros-last-saved symbol))))
+    (setq emacros-last-saved (if arg nil symbol))))
+
+;; ---------------------------------------------------------------------------
 
 (defun emacros-rename-macro ()
   "Renames macro in macrofile(s) and in current session.
@@ -405,7 +592,7 @@ named, inserted, or manipulated macro in the current buffer."
   (let* ((old-name (emacros-read-macro-name2 "Replace macroname"))
          (new-name (emacros-read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
-         (macro-file (emacros-db-mode-filename))
+         (macro-file (emacros--db-mode-filename))
          (filename)
          (local-macro-filename)
          (global-macro-filename)
@@ -423,8 +610,8 @@ named, inserted, or manipulated macro in the current buffer."
       (setq new-name
             (emacros-read-macro-name1
              (format "Replace macroname %s with: " old-name) old-name)))
-    (setq local-macro-filename (expand-file-name macro-file default-directory))
-    (setq global-macro-filename(expand-file-name macro-file emacros-global-dir))
+    (setq local-macro-filename  (emacros--db-mode-filepath))
+    (setq global-macro-filename (emacros--db-mode-filepath :global))
     (setq filename local-macro-filename)
     (if (and (setq buf (get-file-buffer filename))
              (buffer-modified-p buf))
@@ -528,10 +715,10 @@ vice versa. Default is the name of the most recently saved, inserted,
 or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
-  (if (emacros-same-dirname default-directory emacros-global-dir)
+  (if (emacros-same-dirname default-directory emacros-global-dirpath)
       (error "Local = global in this buffer"))
   (let ((name (emacros-read-macro-name2 "Move macro named"))
-        (macro-file (emacros-db-mode-filename))
+        (macro-file (emacros--db-mode-filename))
         (gl)
         (moved)
         (filename1)
@@ -559,9 +746,9 @@ or manipulated macro in the current buffer."
         (setq gl (read-char))))
     (and (= gl ?\r) (setq gl emacros-glob-loc))
     (if (= gl ?l)
-        (progn (setq filename1 (expand-file-name macro-file default-directory))
-               (setq filename2 (expand-file-name macro-file emacros-global-dir)))
-      (setq filename1 (expand-file-name macro-file emacros-global-dir))
+        (progn (setq filename1 (emacros--db-mode-filepath))
+               (setq filename2 (emacros--db-mode-filepath :global)))
+      (setq filename1 (expand-file-name macro-file emacros-global-dirpath))
       (setq filename2 (expand-file-name macro-file default-directory)))
     (if (and (setq buf1 (get-file-buffer filename1))
              (buffer-modified-p buf1))
@@ -665,10 +852,10 @@ inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
   (let* ((name (emacros-read-macro-name2 "Remove macro named"))
-         (macro-file (emacros-db-mode-filename))
-         (local-macro-filename    (expand-file-name macro-file default-directory))
-         (global-macro-filename   (expand-file-name macro-file emacros-global-dir))
-         (filename                local-macro-filename)
+         (macro-file            (emacros--db-mode-filename))
+         (local-macro-filename  (emacros--db-mode-filepath))
+         (global-macro-filename (emacros--db-mode-filepath :global))
+         (filename              local-macro-filename)
          (buf)
          (deleted))
     (if (and (setq buf (get-file-buffer filename))
@@ -749,7 +936,7 @@ in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (error "No named kbd-macros defined"))
   (let ((prompt (format "Auto-execute macro named%s: "
-                        (if (emacros-macrop emacros-last-name)
+                        (if (emacros--macrop emacros-last-name)
                             (format " (default %s)" emacros-last-name)
                           "")))
         (name "")
@@ -775,14 +962,14 @@ in the current buffer."
           (setq name (substring name 0 (- (length name) 1))))
         (if (= char ?\r)
             (if (equal name "")
-                (if (emacros-macrop emacros-last-name)
+                (if (emacros--macrop emacros-last-name)
                     (progn (setq symbol emacros-last-name)
                            (setq is-macro t))
                   (ding)
                   (message "%s[No default]" prompt)
                   (sit-for 2))
               (if (null (setq compl
-                              (try-completion name obarray 'emacros-macrop)))
+                              (try-completion name obarray 'emacros--macrop)))
                   (and (null (ding))
                        (message "%s%s [No match]" prompt name)
                        (sit-for 2))
@@ -792,10 +979,10 @@ in the current buffer."
                          (sit-for 2))
                   (setq name compl)
                   (setq symbol (car (read-from-string name)))
-                  (setq is-macro (emacros-macrop symbol)))))
+                  (setq is-macro (emacros--macrop symbol)))))
           (setq name (concat name (char-to-string char)))
           (setq symbol (car (read-from-string name)))
-          (setq is-macro (emacros-macrop symbol))))))
+          (setq is-macro (emacros--macrop symbol))))))
     (setq emacros-last-name symbol)
     (execute-kbd-macro symbol)))
 
@@ -804,7 +991,7 @@ in the current buffer."
   "Attempt to load macro definitions file.
 The file is mode-mac.el  (where \"mode\"
 stands for the name of the current mode\)
-from current directory and from directory emacros-global-dir.
+from current directory and from directory emacros-global-dirpath.
 If the mode name contains a forward slash, then only the
 initial substring of the mode name up to but not including
 the forward slash is used.
@@ -812,8 +999,8 @@ the forward slash is used.
 Does not consider files that have been loaded previously or
 created during present session."
   (interactive)
-  (let ((processed-mode-name (emacros-processed-mode-name)))
-    (let ((macro-file (emacros-db-mode-filename))
+  (let ((processed-mode-name (emacros--processed-mode-name)))
+    (let ((macro-file (emacros--db-mode-filename))
           (mac-ok)
           (nextmac)
           (filename))
@@ -825,11 +1012,11 @@ created during present session."
                (throw 'found-mode t))
           (setq mac-ok (cons nextmac mac-ok))
           (setq nextmac nil)))
-      (setq filename (expand-file-name macro-file emacros-global-dir))
+      (setq filename (emacros--db-mode-filepath :global))
       (if (file-exists-p filename)
           (progn (or nextmac (load-file filename))
                  (setq emacros-glob-loc ?g)))
-      (if (emacros-same-dirname default-directory emacros-global-dir)
+      (if (emacros-same-dirname default-directory emacros-global-dirpath)
           (progn (setq emacros-glob-loc ?g)
                  (setq nextmac (cons processed-mode-name (cdr nextmac))))
         (let ((dirlist (cdr nextmac))
@@ -953,44 +1140,10 @@ just been started and the current file read from the file system."
   (emacros-load-macros)
   (message "Macros refreshed for current buffer"))
 
-(defun emacros-prompt-for-overwriting-macro-definition (macro-file buf symbol gl use-custom-file filename)
-  "Check for macro definition in a MACRO-FILE. If so, prompt for overwriting."
-   (if (and (not buf) (not (file-exists-p filename)))
-       nil
-     (let ((macro-name-exists-p nil))
-       (let ((find-file-hook nil)
-             (emacs-lisp-mode-hook nil)
-             (after-save-hook nil)
-             (kill-buffer-hook nil))
-         (save-excursion
-           (if buf (set-buffer buf)
-             (find-file filename))
-           (goto-char (point-min))
-           (if (search-forward
-                (format "(emacros-new-macro '%s " symbol)
-                (point-max) t)
-               (setq macro-name-exists-p t))
-           (or buf (kill-buffer (buffer-name)))))
-       (if (not macro-name-exists-p)
-           nil
-         (if use-custom-file
-             (or (ding)
-                 (y-or-n-p
-                  (format
-                   "Macro %s exists in file %s.  Overwrite? "
-                   symbol
-                   filename))
-                 (error "Aborted"))
-           (or (ding)
-               (y-or-n-p
-                (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                        symbol
-                        (if (= gl ?l) "local" "global")
-                        macro-file))
-               (error "Aborted")))))))
-
-(defun emacros-insert-kbd-macro (symbol kbd-macro overwrite-existing-macro-definition)
-  "Insert macro definition in current buffer, overwriting existing definition if requested."
+(defun emacros-insert-kbd-macro
+    (symbol kbd-macro overwrite-existing-macro-definition)
+  "Insert macro definition in current buffer.
+Overwrite existing definition if requested."
   (if overwrite-existing-macro-definition
       (emacros-remove-macro-definition symbol))
   (goto-char (point-max))
@@ -1035,7 +1188,7 @@ just been started and the current file read from the file system."
 Those are the symbols that have a non-void function definition and are macro."
   (let (macro-list)
     (mapatoms (lambda (symbol)
-                (if (emacros-macrop symbol)
+                (if (emacros--macrop symbol)
                     (setq macro-list (cons symbol macro-list)))))
     (sort
      macro-list
@@ -1051,7 +1204,7 @@ Those are the symbols that have a non-void function definition and are macro."
   "Return t if there is at least one keyboard macro currently defined."
   (catch 'macro-found
     (mapatoms (lambda (symbol)
-                (if (emacros-macrop symbol)
+                (if (emacros--macrop symbol)
                     (throw 'macro-found t))))
     nil))
 
@@ -1059,3 +1212,5 @@ Those are the symbols that have a non-void function definition and are macro."
 (provide 'emacros)
 
 ;;; emacros.el ends here
+
+; LocalWords:  emacros
