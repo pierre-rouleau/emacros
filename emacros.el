@@ -39,8 +39,8 @@
 
 
 
-;; The following describes the emacros commands ('*'), functions ('-')
-;; and interactive functions ('+') code hierarchy.
+;; The following describes the emacros commands ('*'), functions ('-'),
+;; interactive functions ('+') and macros ('@') code hierarchy.
 ;;
 ;; - `emacros-dirname-expanded'
 ;; - `emacros-same-dirname'
@@ -65,8 +65,10 @@
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--is-overwrite-needed-and-allowed'
 ;;     - `emacros--is-kbmacro-in'
+;;       @ `emacros--with'
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--write-kbmacro-to'
+;;      @ `emacros--with'
 
 ;; * `emacros-rename-macro'
 ;;   - `emacros-read-macro-name1'
@@ -392,6 +394,36 @@ This function is stored inside the emacros macro storage files."
   (fset name macro-text))
 
 ;; ---------------------------------------------------------------------------
+;; Buffer/File protection macro
+;; ----------------------------
+
+(defmacro emacros--with (buf fname do &rest body)
+  "Evaluate BODY in the keyboard macro buff BUF or a new one for FNAME.
+The DO argument is a cosmetic marker.
+The file-saving hooks are disabled for the duration of the evaluation
+and after evaluation the BODY everything is restored: if a new buffer
+had to be opened for visiting FNAME it is killed.
+
+Example:
+  (emacros-with buf filename
+    do
+     (some-call some-data)
+     (some-other-call some-other-data)) "
+  (declare (indent 2))
+  (ignore do)         ; prevent byte-compile warning about unused 'do'
+  `(let ((find-file-hook nil)
+        (emacs-lisp-mode-hook nil)
+        (after-save-hook nil)
+        (kill-buffer-hook nil))
+    (save-excursion
+      (if buf
+          (set-buffer ,buf)
+        (find-file ,fname))
+      ,@body
+      (unless buf
+        (kill-buffer (buffer-name))))))
+
+;; ---------------------------------------------------------------------------
 ;; Store a new keyboard macro recording
 ;; ------------------------------------
 
@@ -468,24 +500,13 @@ and filepath is the absolute path and name of the keyboard definition file."
 (defun emacros--is-kbmacro-in (kbmacro buf filename)
   "Check if KBMACRO is present in either BUF or FILENAME.
 Return t if it is, nil otherwise."
-  (let ((macro-name-exists nil)
-        ;; temporary disable some hooks
-        (find-file-hook nil)
-        (emacs-lisp-mode-hook nil)
-        (after-save-hook nil)
-        (kill-buffer-hook nil))
-    (save-excursion
-      (if buf
-          (set-buffer buf)
-        (find-file filename))
-      ;; ---------------------------------------------------------------------
+  (let ((macro-name-exists nil))
+    (emacros--with buf filename
+      do
       (goto-char (point-min))
       (when (search-forward
              (format "(emacros-new-macro '%s " kbmacro) nil :no-error)
-          (setq macro-name-exists t))
-      ;; ---------------------------------------------------------------------
-      (unless  buf
-        (kill-buffer (buffer-name))))
+        (setq macro-name-exists t)))
     macro-name-exists))
 
 (defun emacros--is-overwrite-needed-and-allowed
@@ -520,20 +541,11 @@ issue a user-error when user wants to abort."
 Store it in either buffer BUF or file FILENAME.
 Allow OVERWRITE is requested."
   ;; disable hooks while writing to file
-  (let ((find-file-hook nil)
-        (emacs-lisp-mode-hook nil)
-        (after-save-hook nil)
-        (kill-buffer-hook nil))
-    (save-excursion
-      (if buf
-          (set-buffer buf)
-        (find-file filename))
-      ;; ---------------------------------------------------------------------
-      (emacros-insert-kbd-macro macro-name macro-code overwrite)
-      ;; ---------------------------------------------------------------------
-      (save-buffer 0) ; no backup
-      (unless buf
-        (kill-buffer (buffer-name))))))
+  (emacros--with buf filename
+    do
+    (emacros-insert-kbd-macro macro-name macro-code overwrite)
+    ;; prevent backup
+    (save-buffer 0)))
 
 (defun emacros-name-last-kbd-macro-add (&optional arg)
   "Assigns a name to the last keyboard macro defined.
@@ -626,6 +638,7 @@ named, inserted, or manipulated macro in the current buffer."
     (while filename
       (when (or buf
                 (file-exists-p filename))
+        ;; ---------------------------------------------------------------------------
         (let ((find-file-hook nil)
               (emacs-lisp-mode-hook nil)
               (after-save-hook nil)
@@ -646,6 +659,7 @@ named, inserted, or manipulated macro in the current buffer."
                        (setq new-name-found t))
                    (unless buf
                      (kill-buffer (buffer-name)))))))
+      ;; ---------------------------------------------------------------------------
       (if old-name-found
           (progn (if new-name-found
                      (progn (ding)
