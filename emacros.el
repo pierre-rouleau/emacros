@@ -770,43 +770,32 @@ or manipulated macro in the current buffer."
            "Buffer visiting %s macro file modified.  Continue? (May save!)? "
            (if (= gl ?g) "local" "global")))
          (user-error "Aborted")))
-    (let ((find-file-hook nil)
-          (emacs-lisp-mode-hook nil)
-          (after-save-hook nil)
-          (kill-buffer-hook nil))
-      (save-excursion
-        (if (or buf1 (file-exists-p filename1))
-            (progn (if buf1
-                       (set-buffer buf1)
-                     (find-file filename1))
-                   (goto-char (point-min))
-                   (if (search-forward
-                        (format "(emacros-new-macro '%s " name)
-                        (point-max) t)
-                       (setq name-found-in-source t))
-                   (or buf1 (kill-buffer (buffer-name)))))
-        (if (or buf2 (file-exists-p filename2))
-            (progn (if buf2
-                       (set-buffer buf2)
-                     (find-file filename2))
-                   (goto-char (point-min))
-                   (if (search-forward
-                        (format "(emacros-new-macro '%s " name)
-                        (point-max) t)
-                       (setq name-found-in-target t))
-                   (or buf2 (kill-buffer (buffer-name)))))))
-    (if (not name-found-in-source)
-        (user-error "Macro named %s not found in %s file %s"
-               name (if (= gl ?l) "local" "global") macro-file))
-    (if name-found-in-target
-        (progn (ding)
-               (if (y-or-n-p
-                    (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                            name
-                            (if (= gl ?l) "global" "local")
-                            macro-file))
-                   (emacros-remove-macro-definition-from-file name buf2 filename2)
-                 (user-error "Aborted"))))
+    (emacros--within buf1 or filename1
+      do
+      (goto-char (point-min))
+      (if (search-forward
+           (format "(emacros-new-macro '%s " name)
+           (point-max) t)
+          (setq name-found-in-source t)))
+    (emacros--within buf2 or filename2
+      do
+      (goto-char (point-min))
+      (if (search-forward
+           (format "(emacros-new-macro '%s " name)
+           (point-max) t)
+          (setq name-found-in-target t)))
+    (unless name-found-in-source
+      (user-error "Macro named %s not found in %s file %s"
+                  name (if (= gl ?l) "local" "global") macro-file))
+    (when name-found-in-target
+      (ding)
+      (if (y-or-n-p
+           (format "Macro %s exists in %s macro file %s.  Overwrite? "
+                   name
+                   (if (= gl ?l) "global" "local")
+                   macro-file))
+          (emacros-remove-macro-definition-from-file name buf2 filename2)
+        (user-error "Aborted")))
     (let ((find-file-hook nil)
           (emacs-lisp-mode-hook nil)
           (after-save-hook nil)
