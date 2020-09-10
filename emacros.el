@@ -397,8 +397,8 @@ This function is stored inside the emacros macro storage files."
 ;; Buffer/File protection macro
 ;; ----------------------------
 
-(defmacro emacros--with (buf fname do &rest body)
-  "Evaluate BODY in the keyboard macro buff BUF or a new one for FNAME.
+(defmacro emacros--with (mbuf fname do &rest body)
+  "Evaluate BODY in the keyboard macro buffer MBUF or a new one for FNAME.
 The DO argument is a cosmetic marker.
 The file-saving hooks are disabled for the duration of the evaluation
 and after evaluation the BODY everything is restored: if a new buffer
@@ -411,17 +411,19 @@ Example:
      (some-other-call some-other-data)) "
   (declare (indent 2))
   (ignore do)         ; prevent byte-compile warning about unused 'do'
-  `(let ((find-file-hook nil)
-        (emacs-lisp-mode-hook nil)
-        (after-save-hook nil)
-        (kill-buffer-hook nil))
-    (save-excursion
-      (if buf
-          (set-buffer ,buf)
-        (find-file ,fname))
-      ,@body
-      (unless buf
-        (kill-buffer (buffer-name))))))
+  `(if (or ,mbuf (file-exists-p ,fname))
+       (let ((find-file-hook nil)
+             (emacs-lisp-mode-hook nil)
+             (after-save-hook nil)
+             (kill-buffer-hook nil))
+         (save-excursion
+           (if ,mbuf
+               (set-buffer ,mbuf)
+             (find-file ,fname))
+           ,@body
+           (unless ,mbuf
+             (kill-buffer (buffer-name)))))
+     (error (format "No buffer, no file %s!" ,fname))))
 
 ;; ---------------------------------------------------------------------------
 ;; Store a new keyboard macro recording
@@ -660,6 +662,7 @@ named, inserted, or manipulated macro in the current buffer."
               (emacros-remove-macro-definition-from-file new-name buf filename)
             (setq skip-this-file t)))
         (if (not skip-this-file)
+;; ---------------------------------------------------------------------------
             (let ((find-file-hook nil)
                   (emacs-lisp-mode-hook nil)
                   (after-save-hook nil)
@@ -669,6 +672,7 @@ named, inserted, or manipulated macro in the current buffer."
                   (if buf
                       (set-buffer buf)
                     (find-file filename))
+;; ---------------------------------------------------------------------------
                   (goto-char (point-min))
                   (when (search-forward (format "(emacros-new-macro '%s " old-name) nil :noerror)
                     (let ((end (point)))
@@ -683,8 +687,10 @@ named, inserted, or manipulated macro in the current buffer."
                                               "local"
                                             "global")))
                     (save-buffer 0))
+;; ---------------------------------------------------------------------------
                   (unless buf
                     (kill-buffer (buffer-name))))))))
+;; ---------------------------------------------------------------------------
       (if (equal filename global-macro-filename)
           (setq filename nil)
         (setq filename global-macro-filename)
