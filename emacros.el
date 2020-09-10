@@ -478,10 +478,12 @@ Return t if it is, nil otherwise."
       (if buf
           (set-buffer buf)
         (find-file filename))
+      ;; ---------------------------------------------------------------------
       (goto-char (point-min))
       (when (search-forward
              (format "(emacros-new-macro '%s " kbmacro) nil :no-error)
           (setq macro-name-exists t))
+      ;; ---------------------------------------------------------------------
       (unless  buf
         (kill-buffer (buffer-name))))
     macro-name-exists))
@@ -526,7 +528,9 @@ Allow OVERWRITE is requested."
       (if buf
           (set-buffer buf)
         (find-file filename))
+      ;; ---------------------------------------------------------------------
       (emacros-insert-kbd-macro macro-name macro-code overwrite)
+      ;; ---------------------------------------------------------------------
       (save-buffer 0) ; no backup
       (unless buf
         (kill-buffer (buffer-name))))))
@@ -620,26 +624,28 @@ named, inserted, or manipulated macro in the current buffer."
          (y-or-n-p "Buffer visiting local macro file modified.  Continue? (May save!)? ")
          (error "Aborted")))
     (while filename
-      (let ((find-file-hook nil)
-            (emacs-lisp-mode-hook nil)
-            (after-save-hook nil)
-            (kill-buffer-hook nil))
-        (save-excursion
-          (if (or buf (file-exists-p filename))
-              (progn (if buf
-                         (set-buffer buf)
-                       (find-file filename))
-                     (goto-char (point-min))
-                     (if (search-forward
-                          (format "(emacros-new-macro '%s " old-name)
-                          (point-max) t)
-                         (setq old-name-found t))
-                     (goto-char (point-min))
-                     (if (search-forward
-                          (format "(emacros-new-macro '%s " new-name)
-                          (point-max) t)
-                         (setq new-name-found t))
-                     (or buf (kill-buffer (buffer-name)))))))
+      (when (or buf
+                (file-exists-p filename))
+        (let ((find-file-hook nil)
+              (emacs-lisp-mode-hook nil)
+              (after-save-hook nil)
+              (kill-buffer-hook nil))
+          (save-excursion
+            (progn (if buf
+                       (set-buffer buf)
+                     (find-file filename))
+                   (goto-char (point-min))
+                   (if (search-forward
+                        (format "(emacros-new-macro '%s " old-name)
+                        (point-max) t)
+                       (setq old-name-found t))
+                   (goto-char (point-min))
+                   (if (search-forward
+                        (format "(emacros-new-macro '%s " new-name)
+                        (point-max) t)
+                       (setq new-name-found t))
+                   (unless buf
+                     (kill-buffer (buffer-name)))))))
       (if old-name-found
           (progn (if new-name-found
                      (progn (ding)
