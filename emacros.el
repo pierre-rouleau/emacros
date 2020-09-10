@@ -471,7 +471,9 @@ MSG must end with a period.
 If specified, CONTINUE-QUESTION must end with a question mark.
 Return t if user selects to continue otherwise raise a \"Aborted\" user-error."
   (ding)
-  (if (y-or-n-p (format "%s  %s " msg (or continue-question "")))
+  (if (y-or-n-p (if continue-question
+                    (format "%s  %s " msg continue-question)
+                  (concat msg " ")))
       t
     (user-error "Aborted")))
 
