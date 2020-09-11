@@ -311,8 +311,9 @@ not including the first slash."
 
 (defun emacros--db-mode-filename ()
   "Return the file name storing emacros for current major mode."
-  ;; TODO: store all files inside a .emacros sub-directory.
-  (format ".emacros-for-%s.el"
+  (format (if emacros-subdir-name
+                    "for-%s.el"
+            ".emacros-for-%s.el")
           (emacros--processed-mode-name)))
 
 (defun emacros--db-mode-filepath (&optional global)
@@ -330,12 +331,8 @@ The returned string is:
                          default-directory))
          (dirname      (if emacros-subdir-name
                            (expand-file-name ".emacros" dirpath)
-                         dirpath))
-         (fname-format (if emacros-subdir-name
-                           "for-%s.el"
-                         ".emacros-for-%s.el")))
-    (expand-file-name (format fname-format
-                              (emacros--processed-mode-name))
+                         dirpath)))
+    (expand-file-name (emacros--db-mode-filename)
                       dirname)))
 
 (defun emacros--db-mode-str (&optional global)
