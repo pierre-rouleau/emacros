@@ -804,38 +804,38 @@ named, inserted, or manipulated macro in the current buffer."
         (emacros--continue-or-abort
          (format
           "Buffer visiting %s macro file modified.  Continue? (May save!)?"
-          scope))
-        ;; search for old and new names
-        (when (or buf (file-exists-p filename))
+          scope)))
+      ;; search for old and new names
+      (when (or buf (file-exists-p filename))
+        (emacros--within buf or filename
+          do
+          (goto-char (point-min))
+          (when (emacros--search-for old-name)
+            (setq old-name-found t))
+          (goto-char (point-min))
+          (when (emacros--search-for new-name)
+            (setq new-name-found t))))
+      (when old-name-found
+        (when new-name-found
+          (ding)
+          (if (y-or-n-p
+               (format "Macro %s exists in %s macro file %s.  Overwrite? "
+                       new-name scope macro-file))
+              (emacros--remove-macro-definition-from-file new-name buf filename)
+            (setq skip-this-file t)))
+        (unless skip-this-file
+          ;; rename the macro
           (emacros--within buf or filename
             do
             (goto-char (point-min))
             (when (emacros--search-for old-name)
-              (setq old-name-found t))
-            (goto-char (point-min))
-            (when (emacros--search-for new-name)
-              (setq new-name-found t))))
-        (when old-name-found
-          (when new-name-found
-            (ding)
-            (if (y-or-n-p
-                 (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                         new-name scope macro-file))
-                (emacros--remove-macro-definition-from-file new-name buf filename)
-              (setq skip-this-file t)))
-          (unless skip-this-file
-            ;; rename the macro
-            (emacros--within buf or filename
-              do
-              (goto-char (point-min))
-              (when (emacros--search-for old-name)
-                (let ((end (point)))
-                  (beginning-of-line)
-                  (delete-region (point) end))
-                (emacros--insert-kbd-macro-head new-name)
-                (save-buffer 0)
-                ;; remember where it was renamed
-                (setq renamed (cons scope renamed)))))))))
+              (let ((end (point)))
+                (beginning-of-line)
+                (delete-region (point) end))
+              (emacros--insert-kbd-macro-head new-name)
+              (save-buffer 0)
+              ;; remember where it was renamed
+              (setq renamed (cons scope renamed))))))))
     (if renamed
         (progn
           (fset new-name (symbol-function old-name))
