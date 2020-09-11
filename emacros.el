@@ -40,7 +40,96 @@
 
 
 ;; The following describes the emacros commands ('*'), functions ('-'),
-;; interactive functions ('+') and macros ('@') call hierarchy.
+;; interactive functions ('+') and macros ('@') code sections and the
+;; call hierarchies.
+
+
+;; Basic directory name utilities
+;; ------------------------------
+;;
+;; - `emacros-dirname-expanded'
+;; - `emacros-same-dirname'
+
+;; Keyboard- macro name & location control utilities
+;; -------------------------------------------------
+;;
+;; - `emacros--processed-mode-name'
+;; - `emacros--db-mode-filename'
+;; - `emacros--db-mode-filepath'
+;; - `emacros--db-mode-str'
+
+;; Keyboard Macro code management utilities:
+;; -----------------------------------------
+;;
+;; All functions that edit the emacros files to add or remove the code of
+;; keyboard macros are in this section.  They control the format of the code
+;; and if one change then you'll probably need to change the others.
+;;
+;; - `emacros-new-macro' is the function that is invoked from the emacros
+;;   data files. The other functions are invoked in one of the emacros top
+;;   level command call tree.
+;; - `emacros--search-for' searches for the definition of a specific kbmacro
+;;   in the current buffer.
+;; - `emacros--move-after-new-macro-form' moves point past the beginning of a
+;;   specific kbmacro form and just before its code begins.
+;; - `emacros--insert-kbd-macro-head' inserts the head of the form defining a
+;;    keyboard macro, but not its code.
+;; - `emacros--insert-kbd-macro' inserts the complete code that defines a
+;;   keyboard macro, possibly replacing the code that was already there.
+;; - `emacros--remove-macro-definition' removes the definition of a keyboard
+;;   macro from the current buffer.
+
+;; Keyboard macro symbol management utilities
+;; ------------------------------------------
+;;
+;; - `emacros--macrop'
+;; - `emacros-there-are-keyboard-macros'
+;; - `emacros-macro-list'
+
+;; Buffer/File protection macro
+;; ----------------------------
+;;
+;; @ `emacros--within' is used to provide protection of code that manipulates
+;;   the buffer or file holding the keyboard macros.
+
+;; Basic prompting
+;; ---------------
+;;
+;; - `emacros--waitforkey'
+;; - `emacros--warn'
+;; - `emacros--continue-or-abort'
+
+;; Prompt/completion for new keyboard macro
+;; ----------------------------------------
+;;
+;; - `emacros--read-macro-name1'
+;;   + `emacros--exit-macro-read1'
+
+;; Prompt/completion for existing keyboard macro
+;; ---------------------------------------------
+;;
+;; - `emacros--read-macro-name2'
+;;   + `emacros--exit-macro-read2'
+
+;; Command: add a new keyboard macro recording
+;; -------------------------------------------
+;;
+;; * `emacros-name-last-kbd-macro-add'
+;;   - `emacros--select-scope'
+;;   - `emacros--is-overwrite-needed-and-allowed'
+;;     - `emacros--is-kbmacro-in'
+;;   - `emacros--write-kbmacro-to'
+
+;; Command: Rename a keyboard macro
+;; --------------------------------
+
+;; Removing a keyboard macro
+;; -------------------------
+
+
+
+;; Call hierarchy
+;; ==============
 ;;
 ;; - `emacros-dirname-expanded'
 ;; - `emacros-same-dirname'
@@ -51,13 +140,10 @@
 ;; - `emacros--db-mode-filepath'
 ;; - `emacros--db-mode-str'
 
-;; - `emacros-read-macro-name2'
-;;   + `emacros--exit-macro-read2'
-
 ;; - `emacros-new-macro'
 
 ;; * `emacros-name-last-kbd-macro-add'
-;;   - `emacros-read-macro-name1'
+;;   - `emacros--read-macro-name1'
 ;;     + `emacros--exit-macro-read1'
 ;;   - `emacros--select-scope'
 ;;     - `emacros--waitforkey'
@@ -66,6 +152,7 @@
 ;;   - `emacros--is-overwrite-needed-and-allowed'
 ;;     - `emacros--is-kbmacro-in'
 ;;       @ `emacros--within'
+;;          - `emacros--search-for'
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--write-kbmacro-to'
 ;;      @ `emacros--within'
@@ -74,7 +161,7 @@
 ;;          - `emacros--search-for'
 
 ;; * `emacros-rename-macro'
-;;   - `emacros-read-macro-name1'
+;;   - `emacros--read-macro-name1'
 ;;     + `emacros--exit-macro-read1'
 
 ;; * `emacros-move-macro'
@@ -88,8 +175,6 @@
 
 ;; - `emacros--remove-macro-definition-from-file'
 ;;   - `emacros--remove-macro-definition'
-
-;; - `emacros-make-macro-list'
 
 ;; ---------------------------------------------------------------------------
 ;;; Code:
@@ -151,16 +236,6 @@ sub-directory")))
 ;; Variables
 ;; ---------
 
-(defvar emacros-minibuffer-local-map
-  nil
-  "Local keymap for reading a new name for a keyboard macro from minibuffer.
-Used by function `emacros-read-macro-name1'.")
-
-(setq emacros-minibuffer-local-map (make-sparse-keymap))
-
-(define-key emacros-minibuffer-local-map "\C-g" 'abort-recursive-edit)
-(define-key emacros-minibuffer-local-map "\n" 'emacros--exit-macro-read1)
-(define-key emacros-minibuffer-local-map "\r" 'emacros--exit-macro-read1)
 
 (defvar-local emacros-glob-loc ?l
   "Default for saving named kbd-macros.
@@ -190,6 +265,8 @@ Each list is headed by the name of the mode to which it pertains.")
   "History list variable for reading the name of an existing macro.")
 
 ;; ---------------------------------------------------------------------------
+;; Basic directory name utilities
+;; ------------------------------
 
 (defun emacros-dirname-expanded (dirname)
   "Return DIRNAME string fully expanded with path and single trailing slash."
@@ -201,14 +278,11 @@ Each list is headed by the name of the mode to which it pertains.")
    (emacros-dirname-expanded d1)
    (emacros-dirname-expanded d2)))
 
-(defun emacros--macrop (name)
-  "Return t if the NAME symbol is the name of a keyboard macro.
-Return nil otherwise."
-  (and (null (integerp name))
-       (fboundp name)
-       (let ((sym-fu (symbol-function name)))
-         (or (vectorp sym-fu)
-             (stringp sym-fu)))))
+
+
+;; ---------------------------------------------------------------------------
+;; Keyboard- macro name & location control utilities
+;; -------------------------------------------------
 
 (defun emacros--processed-mode-name ()
   "Return a valid mode name.
@@ -227,10 +301,6 @@ not including the first slash."
         (if slash-pos-in-mode-name
             (substring mode-name 0 slash-pos-in-mode-name)
           mode-name)))))
-
-;; ---------------------------------------------------------------------------
-;; Utilities - Identify name and location of the emacros kbd-macro def files
-;; -------------------------------------------------------------------------
 
 (defun emacros--db-mode-filename ()
   "Return the file name storing emacros for current major mode."
@@ -268,147 +338,9 @@ The returned string is:
     "local"))
 
 ;; ---------------------------------------------------------------------------
-
-
-(defun emacros--exit-macro-read1 ()
-  "Terminate the new macro name from the minibuffer.
-The equivalent of function `exit-minibuffer' for reading a new macroname
-from minibuffer.  Used by function `emacros-read-macro-name1'."
-  (interactive)
-  (let* ((name (buffer-substring (minibuffer-prompt-end) (point-max)))
-         (parse-list (append name nil)))
-    (if (equal name "")
-        (progn (ding)
-               (insert "[Can't use empty string]")
-               (goto-char (minibuffer-prompt-end))
-               (sit-for 2)
-               (delete-region (minibuffer-prompt-end) (point-max)))
-      (catch 'illegal
-        (while parse-list
-          (let ((char (car parse-list)))
-            (if (or
-                 (and (>= char ?0) (<= char ?9))
-                 (and (>= char ?A) (<= char ?Z))
-                 (and (>= char ?a) (<= char ?z))
-                 (memq char (list ?- ?_)))
-                (setq parse-list (cdr parse-list))
-              (goto-char (point-max))
-              (let ((pos (point)))
-                (ding)
-                (if (= char ? )
-                    (insert " [No blanks, please!]")
-                  (insert " [Use letters, digits, \"-\", \"_\"]"))
-                (goto-char pos)
-                (sit-for 2)
-                (delete-region (point) (point-max)))
-              (throw 'illegal t))))
-        (if (integerp (car (read-from-string name)))
-            (and (goto-char (point-max))
-                 (let ((pos (point)))
-                   (ding)
-                   (insert " [Can't use integer]")
-                   (goto-char pos)
-                   (sit-for 2)
-                   (delete-region (point) (point-max))))
-          (exit-minibuffer))))))
-
-
-
-(defun emacros-read-macro-name1 (prompt &optional letgo)
-  "Read a new name for a macro from minibuffer, prompting with PROMPT.
-Rejects existing function names
-with the exception of optional argument LETGO symbol."
-  (let* ((name (read-from-minibuffer prompt "" emacros-minibuffer-local-map))
-         (symbol (car (read-from-string name)))
-         (sym-fu))
-    (if (and (fboundp symbol)
-             (not (equal symbol letgo)))
-        (progn (setq sym-fu (symbol-function symbol))
-               (if (and
-                    (not (vectorp sym-fu))
-                    (not (stringp sym-fu)))
-                   (error "Function %s is already defined and not a keyboard macro" symbol))))
-    symbol))
-
-;; ---------------------------------------------------------------------------
-
-(defvar emacros--default
-  nil
-  "Dynamic binding storage for emacros last name.
-Temporary storage of the last used macro name for the
-minibuffer completion of commands dealing with emacros.
-
-Set by the function `emacros-read-macro-name2' to allow use inside
-its minibuffer completion function `emacros--exit-macro-read2'.")
-
-(defun emacros--exit-macro-read2 ()
-  "Exit if the minibuffer contain a valid macro name.
-Otherwise try to complete it.
-
-This function substitutes `minibuffer-complete-and-exit'
-when reading an existing macro or macroname as used by the
-function `emacros-read-macro-name2'."
-  (interactive)
-  (if (or (not (= (minibuffer-prompt-end) (point-max)))
-          emacros--default)
-      (minibuffer-complete-and-exit)
-    (ding)
-    (goto-char (minibuffer-prompt-end))
-    (insert "[No default]")
-    (sit-for 2)
-    (delete-region (minibuffer-prompt-end) (point-max))))
-
-(defun emacros-read-macro-name2 (prompt)
-  "Read an existing name of a kbd-macro, prompting with PROMPT.
-PROMPT must be given without trailing colon and blank.
-Supports minibuffer completion."
-  (let ((emacros--default (emacros--macrop emacros-last-name))
-        (inp))
-    (unwind-protect
-        (progn
-          (substitute-key-definition 'minibuffer-complete-and-exit
-                                     'emacros--exit-macro-read2
-                                     minibuffer-local-must-match-map)
-          (setq inp (completing-read
-                     (format "%s%s: "
-                             prompt
-                             (if emacros--default
-                                 (format " (default %s)" emacros-last-name)
-                               ""))
-                     obarray            ; collection: all objects
-                     'emacros--macrop    ; predicate: that are macros
-                     t                  ; require-match: must chose complete element
-                     nil                ;
-                     'emacros-read-existing-macro-name-history-list
-                     (if emacros--default
-                         (format "%s" emacros-last-name)
-                       ""))))
-      (substitute-key-definition 'emacros--exit-macro-read2
-                                 'minibuffer-complete-and-exit
-                                 minibuffer-local-must-match-map))
-    (car (read-from-string inp))))
-
-;; ---------------------------------------------------------------------------
 ;; Keyboard Macro code management utilities
 ;; ----------------------------------------
 ;;
-;; All functions that edit the emacros files to add or remove the code of
-;; keyboard macros are in this section.  They control the format of the code
-;; and if one change then you'll probably need to change the others.
-;;
-;; - `emacros-new-macro' is the function that is invoked from the emacros
-;;   data files. The other functions are invoked in one of the emacros top
-;;   level command call tree.
-;; - `emacros--search-for' searches for the definition of a specific kbmacro
-;;   in the current buffer.
-;; - `emacros--move-after-new-macro-form' moves point past the beginning of a
-;;   specific kbmacro form and just before its code begins.
-;; - `emacros--insert-kbd-macro-head' inserts the head of the form defining a
-;;    keyboard macro, but not its code.
-;; - `emacros--insert-kbd-macro' inserts the complete code that defines a
-;;   keyboard macro, possibly replacing the code that was already there.
-;; - `emacros--remove-macro-definition' removes the definition of a keyboard
-;;   macro from the current buffer.
 
 (defun emacros-new-macro (name macro-text)
   "Assigns to the symbol NAME the function definition MACRO-TEXT."
@@ -455,6 +387,44 @@ OVERWRITE existing definition if requested."
     (insert "\n")))
 
 ;; ---------------------------------------------------------------------------
+;; Keyboard macro symbol management utilities
+;; ------------------------------------------
+
+(defun emacros--macrop (symbol)
+  "Return t if the SYMBOL is the name of a keyboard macro.
+Return nil otherwise.
+Those are the symbols that have a non-void function definition and are macro."
+  (and (null (integerp symbol))
+       (fboundp symbol)
+       (let ((sym-fu (symbol-function symbol)))
+         (or (vectorp sym-fu)
+             (stringp sym-fu)))))
+
+(defun emacros-there-are-keyboard-macros ()
+  "Return t if there is at least one keyboard macro currently defined."
+  (catch 'macro-found
+    (mapatoms (lambda (symbol)
+                (if (emacros--macrop symbol)
+                    (throw 'macro-found t))))
+    nil))
+
+(defun emacros-macro-list ()
+  "Return a sorted list of all keyboard macro symbols."
+  (let (macro-list)
+    (mapatoms (lambda (symbol)
+                (if (emacros--macrop symbol)
+                    (setq macro-list (cons symbol macro-list)))))
+    (sort
+     macro-list
+     #'(lambda (sym1 sym2)
+        (let* ((str1 (prin1-to-string sym1))
+              (str2 (prin1-to-string sym2))
+              (cmp (compare-strings str1 nil nil
+                                    str2 nil nil
+                                    t)))
+          (and (integerp cmp) (< cmp 0)))))))
+
+;; ---------------------------------------------------------------------------
 ;; Buffer/File protection macro
 ;; ----------------------------
 
@@ -488,32 +458,165 @@ Example:
      (error (format "No buffer, no file %s!" ,fname))))
 
 ;; ---------------------------------------------------------------------------
-;; Store a new keyboard macro recording
-;; ------------------------------------
+;; Basic Prompting
+;; ---------------
 
 (defun emacros--waitforkey (msg)
-  "Display message and wait for any key."
+  "Display message, wait for any key and return it as a number."
   (message "%s\nPress any key to continue: " msg)
   (read-char))
 
 (defun emacros--warn (msg)
-  "Warn user.  Beep, display MSG, wait and return typed key."
+  "Warn user.  Beep, display MSG, wait and return typed key as number."
   (ding)
   (message "%s" msg)
   (read-char))
 
-(defun emacros--continue-or-abort (msg &optional continue-question)
-  "Warn user. Beep, display MSG, prompt to continue with CONTINUE-QUESTION.
-Both MSG and CONTINUE-QUESTION are strings.
-MSG must end with a period.
-If specified, CONTINUE-QUESTION must end with a question mark.
+(defun emacros--continue-or-abort (msg)
+  "Warn user. Beep, display MSG which asks if user wants to continue.
 Return t if user selects to continue otherwise raise a \"Aborted\" user-error."
   (ding)
-  (if (y-or-n-p (if continue-question
-                    (format "%s  %s " msg continue-question)
-                  (concat msg " ")))
+  (if (y-or-n-p (concat msg " "))
       t
     (user-error "Aborted")))
+
+;; ---------------------------------------------------------------------------
+;; Prompt/completion for new keyboard macro
+;; ----------------------------------------
+
+(defvar emacros-minibuffer-local-map
+  nil
+  "Local keymap for reading a new name for a keyboard macro from minibuffer.
+Used by function `emacros--read-macro-name1'.")
+
+(setq emacros-minibuffer-local-map (make-sparse-keymap))
+
+(define-key emacros-minibuffer-local-map "\C-g" 'abort-recursive-edit)
+(define-key emacros-minibuffer-local-map "\n" 'emacros--exit-macro-read1)
+(define-key emacros-minibuffer-local-map "\r" 'emacros--exit-macro-read1)
+
+
+(defun emacros--exit-macro-read1 ()
+  "Terminate the new macro name from the minibuffer.
+The equivalent of function `exit-minibuffer' for reading a new macroname
+from minibuffer.  Used by function `emacros--read-macro-name1'."
+  (interactive)
+  (let* ((name (buffer-substring (minibuffer-prompt-end) (point-max)))
+         (parse-list (append name nil)))
+    (if (equal name "")
+        (progn (ding)
+               (insert "[Can't use empty string]")
+               (goto-char (minibuffer-prompt-end))
+               (sit-for 2)
+               (delete-region (minibuffer-prompt-end) (point-max)))
+      (catch 'illegal
+        (while parse-list
+          (let ((char (car parse-list)))
+            (if (or
+                 (and (>= char ?0) (<= char ?9))
+                 (and (>= char ?A) (<= char ?Z))
+                 (and (>= char ?a) (<= char ?z))
+                 (memq char (list ?- ?_)))
+                (setq parse-list (cdr parse-list))
+              (goto-char (point-max))
+              (let ((pos (point)))
+                (ding)
+                (if (= char ? )
+                    (insert " [No blanks, please!]")
+                  (insert " [Use letters, digits, \"-\", \"_\"]"))
+                (goto-char pos)
+                (sit-for 2)
+                (delete-region (point) (point-max)))
+              (throw 'illegal t))))
+        (if (integerp (car (read-from-string name)))
+            (and (goto-char (point-max))
+                 (let ((pos (point)))
+                   (ding)
+                   (insert " [Can't use integer]")
+                   (goto-char pos)
+                   (sit-for 2)
+                   (delete-region (point) (point-max))))
+          (exit-minibuffer))))))
+
+(defun emacros--read-macro-name1 (prompt &optional letgo)
+  "Read a new name for a macro from minibuffer, prompting with PROMPT.
+Rejects existing function names
+with the exception of optional argument LETGO symbol."
+  (let* ((name (read-from-minibuffer prompt "" emacros-minibuffer-local-map))
+         (symbol (car (read-from-string name)))
+         (sym-fu))
+    (if (and (fboundp symbol)
+             (not (equal symbol letgo)))
+        (progn (setq sym-fu (symbol-function symbol))
+               (if (and
+                    (not (vectorp sym-fu))
+                    (not (stringp sym-fu)))
+                   (error "Function %s is already defined and not a keyboard macro" symbol))))
+    symbol))
+
+;; ---------------------------------------------------------------------------
+;; Prompt/completion for existing keyboard macro
+;; ---------------------------------------------
+
+(defvar emacros--default
+  nil
+  "Dynamic binding storage for emacros last name.
+Temporary storage of the last used macro name for the
+minibuffer completion of commands dealing with emacros.
+
+Set by the function `emacros--read-macro-name2' to allow use inside
+its minibuffer completion function `emacros--exit-macro-read2'.")
+
+(defun emacros--exit-macro-read2 ()
+  "Exit if the minibuffer contain a valid macro name.
+Otherwise try to complete it.
+
+This function substitutes `minibuffer-complete-and-exit'
+when reading an existing macro or macroname as used by the
+function `emacros--read-macro-name2'."
+  (interactive)
+  (if (or (not (= (minibuffer-prompt-end) (point-max)))
+          emacros--default)
+      (minibuffer-complete-and-exit)
+    (ding)
+    (goto-char (minibuffer-prompt-end))
+    (insert "[No default]")
+    (sit-for 2)
+    (delete-region (minibuffer-prompt-end) (point-max))))
+
+(defun emacros--read-macro-name2 (prompt)
+  "Read an existing name of a kbd-macro, prompting with PROMPT.
+PROMPT must be given without trailing colon and blank.
+Supports minibuffer completion."
+  (let ((emacros--default (emacros--macrop emacros-last-name))
+        (inp))
+    (unwind-protect
+        (progn
+          (substitute-key-definition 'minibuffer-complete-and-exit
+                                     'emacros--exit-macro-read2
+                                     minibuffer-local-must-match-map)
+          (setq inp (completing-read
+                     (format "%s%s: "
+                             prompt
+                             (if emacros--default
+                                 (format " (default %s)" emacros-last-name)
+                               ""))
+                     obarray            ; collection: all objects
+                     'emacros--macrop    ; predicate: that are macros
+                     t                  ; require-match: must chose complete element
+                     nil                ;
+                     'emacros-read-existing-macro-name-history-list
+                     (if emacros--default
+                         (format "%s" emacros-last-name)
+                       ""))))
+      (substitute-key-definition 'emacros--exit-macro-read2
+                                 'minibuffer-complete-and-exit
+                                 minibuffer-local-must-match-map))
+    (car (read-from-string inp))))
+
+;; ---------------------------------------------------------------------------
+;; Command: add a new keyboard macro recording
+;; -------------------------------------------
 
 (defun emacros--select-scope (prompt-user)
   "Return the keyboard macro definition type and the storage file.
@@ -548,9 +651,9 @@ and filepath is the absolute path and name of the keyboard definition file."
                "Using global as current = global for this buffer.")
               (setq gl ?g))
           ;; not in global directory: make user select the scope
-          (message "Save as local or global macro? (l/g, default %s) "
-                   (emacros--db-mode-str (= emacros-glob-loc ?g)))
-          (setq gl (read-char))
+          (setq gl (emacros--waitforkey
+                    (format "Save as local or global macro? (l/g, default %s) "
+                            (emacros--db-mode-str (= emacros-glob-loc ?g)))))
           (while (not (memq gl (list ?l ?g ?\r)))
             (setq gl
                   (emacros--warn
@@ -590,14 +693,13 @@ issue a user-error when user wants to abort."
         ;; and return t to overwrite, abort if not.
         ;; If macro does not exist return nil.
         (emacros--continue-or-abort
-         (format "Macro %s exists in %s"
+         (format "Macro %s exists in %s.  Overwrite?"
                  kbmacro
                  (if use-custom-file
                      (format "file %s" filename)
                    (format "%s macro file %s"
                            (emacros--db-mode-str (= gl ?g))
-                           macro-file)))
-         "Overwrite?"))))
+                           macro-file)))))))
 
 (defun emacros--write-kbmacro-to
     (macro-name macro-code buf filename overwrite)
@@ -622,7 +724,7 @@ or moved to in the current buffer."
   (interactive "P")
   (unless last-kbd-macro
       (user-error "No kbd-macro defined!"))
-  (let* ((symbol     (emacros-read-macro-name1 "Name for last kbd-macro: "))
+  (let* ((symbol     (emacros--read-macro-name1 "Name for last kbd-macro: "))
          (macro-file (emacros--db-mode-filename))
          (gl.fname   (emacros--select-scope arg))
          (gl         (car gl.fname))
@@ -635,11 +737,10 @@ or moved to in the current buffer."
       ;; Warn the user and allow aborting.
       (emacros--continue-or-abort
        (format
-        "Buffer visiting %s modified."
+        "Buffer visiting %s modified.  Continue? (Will save!)?"
         (if arg
             (format "file %s" filename)
-          (format "%s macro file" (emacros--db-mode-str (= gl ?g)))))
-       "Continue? (Will save!)?"))
+          (format "%s macro file" (emacros--db-mode-str (= gl ?g)))))))
     (emacros--write-kbmacro-to symbol
                                last-kbd-macro
                                buf
@@ -661,6 +762,8 @@ or moved to in the current buffer."
     (setq emacros-last-saved (if arg nil symbol))))
 
 ;; ---------------------------------------------------------------------------
+;; Command: Rename a keyboard macro
+;; --------------------------------
 
 (defun emacros-rename-macro ()
   "Renames macro in macrofile(s) and in current session.
@@ -669,8 +772,8 @@ to replace it.  Default for the old name is the name of the most recently
 named, inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
-  (let* ((old-name (emacros-read-macro-name2 "Replace macroname"))
-         (new-name (emacros-read-macro-name1
+  (let* ((old-name (emacros--read-macro-name2 "Replace macroname"))
+         (new-name (emacros--read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
          (macro-file (emacros--db-mode-filename))
          (filename)
@@ -683,10 +786,10 @@ named, inserted, or manipulated macro in the current buffer."
          (renamed))
     (while (equal new-name old-name)
       (emacros--continue-or-abort
-           (format "%s and %s are identical.  Repeat choice for new name? "
+           (format "%s and %s are identical.  Repeat choice for new name?"
                    old-name new-name))
       (setq new-name
-            (emacros-read-macro-name1
+            (emacros--read-macro-name1
              (format "Replace macroname %s with: " old-name) old-name)))
     (setq local-macro-filename  (emacros--db-mode-filepath))
     (setq global-macro-filename (emacros--db-mode-filepath :global))
@@ -740,7 +843,7 @@ named, inserted, or manipulated macro in the current buffer."
         (when (and (setq buf (get-file-buffer filename))
                    (buffer-modified-p buf))
           (emacros--continue-or-abort
-           "Buffer visiting global macro file modified.  Continue? (May save!)? "))))
+           "Buffer visiting global macro file modified.  Continue? (May save!)?"))))
     (or renamed
         (user-error
          "Macro named %s not found or skipped at user request in current local and global file %s: no action taken"
@@ -767,7 +870,7 @@ or manipulated macro in the current buffer."
   (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (if (emacros-same-dirname default-directory emacros-global-dirpath)
       (user-error "Local = global in this buffer"))
-  (let ((name (emacros-read-macro-name2 "Move macro named"))
+  (let ((name (emacros--read-macro-name2 "Move macro named"))
         (macro-file (emacros--db-mode-filename))
         (gl)
         (moved)
@@ -779,21 +882,23 @@ or manipulated macro in the current buffer."
         (name-found-in-target nil)
         (buffername))
     (let ((cursor-in-echo-area t))
-      (message "Move FROM local or FROM global? (l/g%s) "
-               (if (equal name emacros-last-saved)
-                   (format ", default %s"
-                           (if (= emacros-glob-loc ?g) "global" "local")) ""))
-      (setq gl (read-char))
+      (setq gl (emacros--waitforkey
+                (message "Move FROM local or FROM global? (l/g%s) "
+                         (if (equal name emacros-last-saved)
+                             (format ", default %s"
+                                     (if (= emacros-glob-loc ?g)
+                                         "global" "local")) ""))))
       (while (not (if (equal name emacros-last-saved)
                       (memq gl (list ?l ?g ?\r))
                     (memq gl (list ?l ?g))))
-        (ding)
-        (message
-         "Please answer l for local, g for global%s: "
-         (if (equal name emacros-last-saved)
-             (format ", or RET for %s"
-                     (if (= emacros-glob-loc ?g) "global" "local")) ""))
-        (setq gl (read-char))))
+        (setq gl (emacros--warn
+                  (message
+                   "Please answer l for local, g for global%s: "
+                   (if (equal name emacros-last-saved)
+                       (format ", or RET for %s"
+                               (if (= emacros-glob-loc ?g)
+                                   "global" "local")) ""))))))
+
     (and (= gl ?\r) (setq gl emacros-glob-loc))
     (if (= gl ?l)
         (progn (setq filename1 (emacros--db-mode-filepath))
@@ -807,7 +912,7 @@ or manipulated macro in the current buffer."
               (and buf2 (buffer-modified-p buf2)))
       (emacros--continue-or-abort
        (format
-        "Buffer visiting %s macro file modified.  Continue? (May save!)? "
+        "Buffer visiting %s macro file modified.  Continue? (May save!)?"
         (if (= gl ?g) "global" "local"))))
     (emacros--within buf1 or filename1
       do
@@ -824,11 +929,11 @@ or manipulated macro in the current buffer."
                   name (if (= gl ?l) "local" "global") macro-file))
     (when (and
            name-found-in-target
-           (emacros--continue-or-abort (format
-                                        "Macro %s exists in %s macro file %s."
-                                        name (if (= gl ?l) "global" "local")
-                                        macro-file)
-                                       "Overwrite?"))
+           (emacros--continue-or-abort
+            (format
+             "Macro %s exists in %s macro file %s.  Overwrite?"
+             name (if (= gl ?l) "global" "local")
+             macro-file)))
       (emacros--remove-macro-definition-from-file name buf2 filename2))
     (setq moved nil)
     (emacros--within buf1 or filename1
@@ -868,7 +973,7 @@ The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
-  (let* ((name (emacros-read-macro-name2 "Remove macro named"))
+  (let* ((name (emacros--read-macro-name2 "Remove macro named"))
          (macro-file            (emacros--db-mode-filename))
          (local-macro-filename  (emacros--db-mode-filepath))
          (global-macro-filename (emacros--db-mode-filepath :global))
@@ -923,7 +1028,7 @@ Default is the most recently saved, inserted, or manipulated macro
 in the current buffer."
   (interactive)
   (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
-  (let ((name (emacros-read-macro-name2 "Execute macro named")))
+  (let ((name (emacros--read-macro-name2 "Execute macro named")))
     (setq emacros-last-name name)
     (execute-kbd-macro name)))
 
@@ -945,8 +1050,7 @@ in the current buffer."
         (symbol)
         (compl))
     (while (not is-macro)
-      (message "%s%s" prompt name)
-      (setq char (read-char))
+      (setq char (emacros--waitforkey (format "%s%s" prompt name)))
       (if (and (not (or (= char ?\r) (= char ?-) (= char ?_)
                         (= char ?\C-?)))
                (or (< char ?0)
@@ -1040,7 +1144,7 @@ created during present session."
 (defun emacros-show-macros ()
   "Displays the kbd-macros that are currently defined."
   (interactive)
-  (let* ((mlist (emacros-make-macro-list))
+  (let* ((mlist (emacros-macro-list))
          (next-macro-name (car mlist))
          (next-macro-definition (if next-macro-name (symbol-function next-macro-name) nil)))
     (or next-macro-name (user-error "No named kbd-macros defined"))
@@ -1091,7 +1195,7 @@ created during present session."
 With prefix ARG, display macro names in a single column instead of the
 usual two column format."
   (interactive "P")
-  (let* ((mlist (emacros-make-macro-list))
+  (let* ((mlist (emacros-macro-list))
          (current-macro-name (car mlist))
          (current-column 0)
          (padding-width 0))
@@ -1127,7 +1231,7 @@ When called in a buffer, this function produces, as far as
 kbd-macros are concerned, the same situation as if Emacs had
 just been started and the current file read from the file system."
   (interactive)
-  (let* ((mlist (emacros-make-macro-list))
+  (let* ((mlist (emacros-macro-list))
          (next (car mlist)))
     (while next
       (fmakunbound next)
@@ -1149,30 +1253,9 @@ just been started and the current file read from the file system."
       (emacros--remove-macro-definition symbol)
       (save-buffer 0))))
 
-(defun emacros-make-macro-list ()
-  "Return a sorted list of all keyboard macro symbols.
-Those are the symbols that have a non-void function definition and are macro."
-  (let (macro-list)
-    (mapatoms (lambda (symbol)
-                (if (emacros--macrop symbol)
-                    (setq macro-list (cons symbol macro-list)))))
-    (sort
-     macro-list
-     #'(lambda (sym1 sym2)
-        (let* ((str1 (prin1-to-string sym1))
-              (str2 (prin1-to-string sym2))
-              (cmp (compare-strings str1 nil nil
-                                    str2 nil nil
-                                    t)))
-          (and (integerp cmp) (< cmp 0)))))))
 
-(defun emacros-there-are-keyboard-macros ()
-  "Return t if there is at least one keyboard macro currently defined."
-  (catch 'macro-found
-    (mapatoms (lambda (symbol)
-                (if (emacros--macrop symbol)
-                    (throw 'macro-found t))))
-    nil))
+
+
 
 ;; ---------------------------------------------------------------------------
 (provide 'emacros)
