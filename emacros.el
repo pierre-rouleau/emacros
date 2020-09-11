@@ -123,6 +123,7 @@
 
 ;; Command: Rename a keyboard macro
 ;; --------------------------------
+;; - `emacros-rename-macro'
 
 ;; Removing a keyboard macro
 ;; -------------------------
@@ -847,8 +848,8 @@ named, inserted, or manipulated macro in the current buffer."
           (fset new-name (symbol-function old-name))
           (fmakunbound old-name)
           (setq emacros-last-name new-name)
-          (and (equal old-name emacros-last-saved)
-               (setq emacros-last-saved new-name))
+          (when (equal emacros-last-saved old-name)
+            (setq emacros-last-saved new-name))
           (message "Renamed macro named %s to %s in %s file %s"
                    old-name
                    new-name
