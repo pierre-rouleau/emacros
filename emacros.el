@@ -858,7 +858,7 @@ named, inserted, or manipulated macro in the current buffer."
           (message "Renamed macro named %s to %s in %s file %s"
                    old-name
                    new-name
-                   (string-join renamed "and ")
+                   (string-join renamed " and ")
                    macro-file))
       (user-error
        "Macro named %s %s '%s': no action taken"
