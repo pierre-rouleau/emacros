@@ -93,6 +93,12 @@
 ;; @ `emacros--within' is used to provide protection of code that manipulates
 ;;   the buffer or file holding the keyboard macros.
 
+;; Buffer/File macro operation utilities
+;; -------------------------------------
+;;
+;; - `emacros--is-defined-in' checks if a macro is defined in a specified buffer
+;;   or file.
+
 ;; Basic prompting
 ;; ---------------
 ;;
@@ -123,6 +129,7 @@
 
 ;; Command: Rename a keyboard macro
 ;; --------------------------------
+;;
 ;; - `emacros-rename-macro'
 
 ;; Removing a keyboard macro
@@ -469,6 +476,21 @@ Example:
      (error (format "No buffer, no file %s!" ,fname))))
 
 ;; ---------------------------------------------------------------------------
+;; Buffer/File macro operation utilities
+;; -------------------------------------
+;;
+
+(defun emacros--is-defined-in (name buf filename)
+  "Return t if macro NAME is defined in BUF or FILENAME, nil otherwise."
+  (when (or buf (file-exists-p filename))
+    (let ((found nil))
+    (emacros--within buf or filename
+      do
+      (goto-char (point-min))
+      (setq found (emacros--search-for name)))
+    found)))
+
+;; ---------------------------------------------------------------------------
 ;; Basic Prompting
 ;; ---------------
 
@@ -784,7 +806,7 @@ named, inserted, or manipulated macro in the current buffer."
   (interactive)
   (emacros--assert-existence-of-kbmacros)
   (let* ((old-name   (emacros--read-macro-name2
-                      "Replace emacros macroname"))
+                      "Rename emacros macroname"))
          (new-name   (emacros--read-macro-name1
                       (format
                        "Replace emacros macroname %s with: " old-name)
@@ -807,9 +829,7 @@ named, inserted, or manipulated macro in the current buffer."
       (let ((scope     (car str.fname))
             (filename  (cdr str.fname))
             (skip-this-file nil)
-            (buf)
-            (old-name-found nil)
-            (new-name-found nil))
+            (buf))
         (when (and (setq buf (get-file-buffer filename))
                    (buffer-modified-p buf))
           (emacros--continue-or-abort
@@ -817,17 +837,8 @@ named, inserted, or manipulated macro in the current buffer."
             "Buffer visiting %s macro file modified.  Continue? (May save!)?"
             scope)))
         ;; search for old and new names
-        (when (or buf (file-exists-p filename))
-          (emacros--within buf or filename
-            do
-            (goto-char (point-min))
-            (when (emacros--search-for old-name)
-              (setq old-name-found t))
-            (goto-char (point-min))
-            (when (emacros--search-for new-name)
-              (setq new-name-found t))))
-        (when old-name-found
-          (when new-name-found
+        (when (emacros--is-defined-in old-name buf filename)
+          (when (emacros--is-defined-in new-name buf filename)
             (ding)
             (if (y-or-n-p
                  (format "Macro %s exists in %s macro file %s.  Overwrite? "
@@ -984,6 +995,8 @@ First change current directory to move a macro between local and global."))
         (setq emacros-glob-loc ?l))
       (message "Moved macro named %s to %s file %s"
                name (if (= gl ?l) "global" "local") macro-file))))
+
+;; ---------------------------------------------------------------------------
 
 (defun emacros-remove-macro ()
   "Remove macro from current session and from current macro files.
