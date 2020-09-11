@@ -770,18 +770,12 @@ to replace it.  Default for the old name is the name of the most recently
 named, inserted, or manipulated macro in the current buffer."
   (interactive)
   (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
-  (let* ((old-name (emacros--read-macro-name2 "Replace macroname"))
-         (new-name (emacros--read-macro-name1
-                    (format "Replace macroname %s with: " old-name) old-name))
+  (let* ((old-name  (emacros--read-macro-name2 "Replace macroname"))
+         (new-name   (emacros--read-macro-name1
+                     (format "Replace macroname %s with: " old-name) old-name))
          (macro-file (emacros--db-mode-filename))
-         (filename)
-         (local-macro-filename)
-         (global-macro-filename)
-         (buf)
-         (old-name-found)
-         (new-name-found)
-         (skip-this-file nil)
          (renamed))
+    ;; Make sure new name differs from old one.
     (while (equal new-name old-name)
       (emacros--continue-or-abort
            (format "%s and %s are identical.  Repeat choice for new name?"
@@ -789,63 +783,75 @@ named, inserted, or manipulated macro in the current buffer."
       (setq new-name
             (emacros--read-macro-name1
              (format "Replace macroname %s with: " old-name) old-name)))
-    (setq local-macro-filename  (emacros--db-mode-filepath))
-    (setq global-macro-filename (emacros--db-mode-filepath :global))
-    (setq filename local-macro-filename)
-    (when (and (setq buf (get-file-buffer filename))
-               (buffer-modified-p buf))
-      (emacros--continue-or-abort
-       "Buffer visiting local macro file modified.  Continue? (May save!)? "))
-    (while filename
-      (when (or buf (file-exists-p filename))
-        (emacros--within buf or filename
-          do
-          (goto-char (point-min))
-          (when (emacros--search-for old-name)
-            (setq old-name-found t))
-          (goto-char (point-min))
-          (when (emacros--search-for new-name)
-            (setq new-name-found t))))
-      (when old-name-found
-        (when new-name-found
-          (ding)
-          (if (y-or-n-p
-               (format "Macro %s exists in %s macro file %s.  Overwrite? "
-                       new-name
-                       (if (equal filename local-macro-filename) "local" "global")
-                       macro-file))
-              (emacros--remove-macro-definition-from-file new-name buf filename)
-            (setq skip-this-file t)))
-        (if (not skip-this-file)
-            (emacros--within buf or filename
-              do
-              (goto-char (point-min))
-              (when (emacros--search-for old-name)
-                (let ((end (point)))
-                  (beginning-of-line)
-                  (delete-region (point) end))
-                (emacros--insert-kbd-macro-head new-name)
-                (if renamed
-                    (setq renamed (concat renamed " and ")))
-                (setq renamed (concat renamed
-                                      (if (equal filename local-macro-filename)
-                                          "local"
-                                        "global")))
-                (save-buffer 0)))))
-      (if (equal filename global-macro-filename)
-          (setq filename nil)
-        (setq filename global-macro-filename)
-        (setq old-name-found nil)
-        (setq new-name-found nil)
-        (setq skip-this-file nil)
-        (when (and (setq buf (get-file-buffer filename))
-                   (buffer-modified-p buf))
-          (emacros--continue-or-abort
-           "Buffer visiting global macro file modified.  Continue? (May save!)?"))))
+    ;; Set files that contain global and local definitions for current mode.
+    ;; If one is already opened and modified, warn user.
+    ;; Set buffer to use local one.
+    (let ((local-macro-filename  (emacros--db-mode-filepath))
+          (global-macro-filename (emacros--db-mode-filepath :global))
+          (filename)
+          (skip-this-file nil)
+          (buf)
+          (old-name-found)
+          (new-name-found))
+      (setq filename local-macro-filename)
+      (when (and (setq buf (get-file-buffer filename))
+                 (buffer-modified-p buf))
+        (emacros--continue-or-abort
+         "Buffer visiting local macro file modified.  Continue? (May save!)?"))
+
+      (while filename
+        (when (or buf (file-exists-p filename))
+          (emacros--within buf or filename
+            do
+            (goto-char (point-min))
+            (when (emacros--search-for old-name)
+              (setq old-name-found t))
+            (goto-char (point-min))
+            (when (emacros--search-for new-name)
+              (setq new-name-found t))))
+        (when old-name-found
+          (when new-name-found
+            (ding)
+            (if (y-or-n-p
+                 (format "Macro %s exists in %s macro file %s.  Overwrite? "
+                         new-name
+                         (if (equal filename local-macro-filename) "local" "global")
+                         macro-file))
+                (emacros--remove-macro-definition-from-file new-name buf filename)
+              (setq skip-this-file t)))
+          (if (not skip-this-file)
+              (emacros--within buf or filename
+                do
+                (goto-char (point-min))
+                (when (emacros--search-for old-name)
+                  (let ((end (point)))
+                    (beginning-of-line)
+                    (delete-region (point) end))
+                  (emacros--insert-kbd-macro-head new-name)
+                  (if renamed
+                      (setq renamed (concat renamed " and ")))
+                  (setq renamed (concat renamed
+                                        (if (equal filename local-macro-filename)
+                                            "local"
+                                          "global")))
+                  (save-buffer 0)))))
+        (if (equal filename global-macro-filename)
+            (setq filename nil)         ; end while loop (!)
+          ;; next step in the loop (!): re-initialize variable (!)
+          (setq filename global-macro-filename)
+          (setq old-name-found nil)
+          (setq new-name-found nil)
+          (setq skip-this-file nil)
+          (when (and (setq buf (get-file-buffer filename))
+                     (buffer-modified-p buf))
+            (emacros--continue-or-abort
+             "Buffer visiting global macro file modified.  Continue? (May save!)?")))))
+
     (or renamed
         (user-error
          "Macro named %s not found or skipped at user request in current local and global file %s: no action taken"
          old-name macro-file))
+
     (fset new-name (symbol-function old-name))
     (fmakunbound old-name)
     (setq emacros-last-name new-name)
