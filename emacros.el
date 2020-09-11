@@ -124,7 +124,6 @@
 ;; * `emacros-name-last-kbd-macro-add'
 ;;   - `emacros--select-scope'
 ;;   - `emacros--is-overwrite-needed-and-allowed'
-;;     - `emacros--is-kbmacro-in'
 ;;   - `emacros--write-kbmacro-to'
 
 ;; Command: Rename a keyboard macro
@@ -159,7 +158,7 @@
 ;;     - `emacros--warn'
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--is-overwrite-needed-and-allowed'
-;;     - `emacros--is-kbmacro-in'
+;;     - `emacros--is-defined-in'
 ;;       @ `emacros--within'
 ;;          - `emacros--search-for'
 ;;     - `emacros--continue-or-abort'
@@ -698,17 +697,6 @@ and filepath is the absolute path and name of the keyboard definition file."
         (setq fname (emacros--db-mode-filepath (= gl ?g))))))
       (cons gl fname)))
 
-(defun emacros--is-kbmacro-in (kbmacro buf filename)
-  "Check if KBMACRO is present in either BUF or FILENAME.
-Return t if it is, nil otherwise."
-  (let ((macro-name-exists nil))
-    (emacros--within buf or filename
-      do
-      (goto-char (point-min))
-      (when (emacros--search-for kbmacro)
-        (setq macro-name-exists t)))
-    macro-name-exists))
-
 (defun emacros--is-overwrite-needed-and-allowed
     (macro-file buf kbmacro gl use-custom-file filename)
   "Check if KBMACRO definition is in a MACRO-FILE or buffer BUF.
@@ -716,12 +704,10 @@ If so, prompt for overwriting it.
 Return t if user want to overwrite existing file/buffer,
 nil if overwrite is not allowed,
 issue a user-error when user wants to abort."
-  (if (and (not buf)
-           (not (file-exists-p filename)))
-      ;; no buffer & no file: no need to overwrite
-      nil
+  (when (or buf
+            (file-exists-p filename))
     ;; buffer or file exist: check if macro name exists
-    (if (emacros--is-kbmacro-in kbmacro buf filename)
+    (if (emacros--is-defined-in kbmacro buf filename)
         ;; If macro already exist, check if user wants to overwrite
         ;; and return t to overwrite, abort if not.
         ;; If macro does not exist return nil.
