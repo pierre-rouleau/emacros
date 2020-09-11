@@ -734,7 +734,7 @@ to save to. Default is the last location that was saved
 or moved to in the current buffer."
   (interactive "P")
   (unless last-kbd-macro
-      (user-error "No kbd-macro defined!"))
+      (user-error "Please define an Emacs keyboard macro first!"))
   (let* ((symbol     (emacros--read-macro-name1 "Name for last kbd-macro: "))
          (macro-file (emacros--db-mode-filename))
          (gl.fname   (emacros--select-scope arg))
