@@ -40,7 +40,7 @@
 
 
 ;; The following describes the emacros commands ('*'), functions ('-'),
-;; interactive functions ('+') and macros ('@') code hierarchy.
+;; interactive functions ('+') and macros ('@') call hierarchy.
 ;;
 ;; - `emacros-dirname-expanded'
 ;; - `emacros-same-dirname'
@@ -69,6 +69,9 @@
 ;;     - `emacros--continue-or-abort'
 ;;   - `emacros--write-kbmacro-to'
 ;;      @ `emacros--within'
+;;      - `emacros--insert-kbd-macro'
+;;        - `emacros--remove-macro-definition'
+;;          - `emacros--search-for'
 
 ;; * `emacros-rename-macro'
 ;;   - `emacros-read-macro-name1'
@@ -82,9 +85,10 @@
 ;; * `emacros-show-macros'
 ;; * `emacros-show-macro-names'
 ;; * `emacros-refresh-macros'
-;; - `emacros-insert-kbd-macro'
-;; - `emacros-remove-macro-definition-from-file'
-;; - `emacros-remove-macro-definition'
+
+;; - `emacros--remove-macro-definition-from-file'
+;;   - `emacros--remove-macro-definition'
+
 ;; - `emacros-make-macro-list'
 
 ;; ---------------------------------------------------------------------------
@@ -387,34 +391,68 @@ Supports minibuffer completion."
 ;; ---------------------------------------------------------------------------
 ;; Keyboard Macro code management utilities
 ;; ----------------------------------------
+;;
+;; All functions that edit the emacros files to add or remove the code of
+;; keyboard macros are in this section.  They control the format of the code
+;; and if one change then you'll probably need to change the others.
+;;
+;; - `emacros-new-macro' is the function that is invoked from the emacros
+;;   data files. The other functions are invoked in one of the emacros top
+;;   level command call tree.
+;; - `emacros--search-for' searches for the definition of a specific kbmacro
+;;   in the current buffer.
+;; - `emacros--move-after-new-macro-form' moves point past the beginning of a
+;;   specific kbmacro form and just before its code begins.
+;; - `emacros--insert-kbd-macro-head' inserts the head of the form defining a
+;;    keyboard macro, but not its code.
+;; - `emacros--insert-kbd-macro' inserts the complete code that defines a
+;;   keyboard macro, possibly replacing the code that was already there.
+;; - `emacros--remove-macro-definition' removes the definition of a keyboard
+;;   macro from the current buffer.
 
 (defun emacros-new-macro (name macro-text)
   "Assigns to the symbol NAME the function definition MACRO-TEXT."
   (fset name macro-text))
 
-(defun emacros--search-for (kbmacro)
-  "Return non-nil if the KBMACRO is defined in current buffer, nil otherwise.
-If KBMACRO is found, move point to the beginning of its code and return point.
-If KBMACRO is not found, return nil. And if MOVE-TO-END-ON-FAIL is non-nil
-move point to the end of searchable buffer area."
-  (search-forward
-   (format "(emacros-new-macro '%s " kbmacro)
-   (point-max)
-   t))
+(defun emacros--search-for (name)
+  "Return end-pos if kbmacro NAME defined in current buffer, nil otherwise.
+If found, move point to the beginning of its code and return point.
+If not found, return nil."
+  (search-forward (format "(emacros-new-macro '%s " name)
+                  (point-max)
+                  t))
 
 (defun emacros--move-after-new-macro-form ()
   "Search for the next definition of a keyboard macro.
 Move point before its code if found, move to the end of buffer is not found."
-  (search-forward "\n(emacros-new-macro '"
-                  (point-max) 'move))
+  (search-forward "\n(emacros-new-macro '" (point-max) 'move))
 
-(defun emacros--insert-kbmacro (name &optional code)
-  "Insert Emacs Lisp code to define kbmacro NAME, optionally with CODE.
-If CODE is nil, just insert the beginning of the Emacs Lisp form that
-identifies the macro name, but not its code."
-  (insert (format "(emacros-new-macro '%s " name))
-  (when code
-    (insert code)))                     ;TODO complete!!
+(defun emacros--insert-kbd-macro-head (name)
+  "Insert definition of kbmacro NAME only.  No code."
+  (insert (format "(emacros-new-macro '%s " name)))
+
+(defun emacros--remove-macro-definition (name)
+  "Remove definition of kbmacro NAME from current buffer."
+  (goto-char (point-min))
+  (when (emacros--search-for name)
+    (end-of-line)
+    (let ((eol (point)))
+      (beginning-of-line)
+      (delete-region (point) eol))
+    (if (not (eobp))
+        (delete-char 1))))
+
+(defun emacros--insert-kbd-macro (name code overwrite)
+  "Insert definition of kbmacro NAME with its CODE in current buffer.
+OVERWRITE existing definition if requested."
+  (when overwrite
+    (emacros--remove-macro-definition name))
+  (goto-char (point-max))
+  (unless (bolp)
+    (insert "\n"))
+  (insert (format "(emacros-new-macro '%s %S)" name code))
+  (when (eobp)
+    (insert "\n")))
 
 ;; ---------------------------------------------------------------------------
 ;; Buffer/File protection macro
@@ -569,7 +607,7 @@ Allow OVERWRITE is requested."
   ;; disable hooks while writing to file
   (emacros--within buf or filename
     do
-    (emacros-insert-kbd-macro macro-name macro-code overwrite)
+    (emacros--insert-kbd-macro macro-name macro-code overwrite)
     ;; prevent backup
     (save-buffer 0)))
 
@@ -675,7 +713,7 @@ named, inserted, or manipulated macro in the current buffer."
                        new-name
                        (if (equal filename local-macro-filename) "local" "global")
                        macro-file))
-              (emacros-remove-macro-definition-from-file new-name buf filename)
+              (emacros--remove-macro-definition-from-file new-name buf filename)
             (setq skip-this-file t)))
         (if (not skip-this-file)
             (emacros--within buf or filename
@@ -685,7 +723,7 @@ named, inserted, or manipulated macro in the current buffer."
                 (let ((end (point)))
                   (beginning-of-line)
                   (delete-region (point) end))
-                (emacros--insert-kbmacro new-name)
+                (emacros--insert-kbd-macro-head new-name)
                 (if renamed
                     (setq renamed (concat renamed " and ")))
                 (setq renamed (concat renamed
@@ -791,7 +829,7 @@ or manipulated macro in the current buffer."
                                         name (if (= gl ?l) "global" "local")
                                         macro-file)
                                        "Overwrite?"))
-      (emacros-remove-macro-definition-from-file name buf2 filename2))
+      (emacros--remove-macro-definition-from-file name buf2 filename2))
     (setq moved nil)
     (emacros--within buf1 or filename1
       do
@@ -1102,41 +1140,14 @@ just been started and the current file read from the file system."
   (emacros-load-macros)
   (message "Macros refreshed for current buffer"))
 
-(defun emacros-insert-kbd-macro
-    (symbol kbd-macro overwrite-existing-macro-definition)
-  "Insert macro definition in current buffer.
-Overwrite existing definition if requested."
-  (if overwrite-existing-macro-definition
-      (emacros-remove-macro-definition symbol))
-  (goto-char (point-max))
-  (if (not (bolp)) (insert "\n"))
-  (insert "(emacros-new-macro '")
-  (prin1 symbol (current-buffer))
-  (insert " ")
-  (prin1 kbd-macro (current-buffer))
-  (insert (if (eobp) ")\n" ")")))
 
-(defun emacros-remove-macro-definition-from-file (symbol buf filename)
+(defun emacros--remove-macro-definition-from-file (symbol buf filename)
   "Remove first definition of macro named SYMBOL from FILENAME."
   (when (or buf (file-exists-p filename))
     (emacros--within buf or filename
       do
-      (emacros-remove-macro-definition symbol)
+      (emacros--remove-macro-definition symbol)
       (save-buffer 0))))
-
-(defun emacros-remove-macro-definition (symbol)
-  "Remove definition of macro named SYMBOL from current buffer."
-  (goto-char (point-min))
-  (if (search-forward
-       (format "(emacros-new-macro '%s " symbol)
-       (point-max) t)
-      (progn
-        (end-of-line)
-        (let ((eol (point)))
-          (beginning-of-line)
-          (delete-region (point) eol))
-        (if (not (eobp))
-                 (delete-char 1)))))
 
 (defun emacros-make-macro-list ()
   "Return a sorted list of all keyboard macro symbols.
