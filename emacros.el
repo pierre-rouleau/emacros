@@ -832,7 +832,8 @@ named, inserted, or manipulated macro in the current buffer."
             (if (y-or-n-p
                  (format "Macro %s exists in %s macro file %s.  Overwrite? "
                          new-name scope macro-file))
-                (emacros--remove-macro-definition-from-file new-name buf filename)
+                (emacros--remove-macro-definition-from-file
+                 new-name buf filename)
               (setq skip-this-file t)
               (setq skip-count (1+ skip-count))))
           (unless skip-this-file
@@ -871,6 +872,8 @@ named, inserted, or manipulated macro in the current buffer."
        macro-file))))
 
 ;; ---------------------------------------------------------------------------
+;; Command: Move macro between local/global file
+;; ---------------------------------------------
 
 (defun emacros-move-macro ()
   "Move macro from local to global macro file or vice versa.
@@ -882,7 +885,9 @@ or manipulated macro in the current buffer."
   (interactive)
   (emacros--assert-existence-of-kbmacros)
   (if (emacros-same-dirname default-directory emacros-global-dirpath)
-      (user-error "Local = global in this buffer"))
+      (user-error "The current directory is your emacro global directory,\n\
+as set by the `emacros-global-dirpath' user option.\n\
+First change current directory to move a macro between local and global."))
   (let ((name (emacros--read-macro-name2 "Move macro named"))
         (macro-file (emacros--db-mode-filename))
         (gl)
