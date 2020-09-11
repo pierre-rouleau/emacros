@@ -83,8 +83,8 @@
 ;; ------------------------------------------
 ;;
 ;; - `emacros--macrop'
-;; - `emacros-there-are-keyboard-macros'
-;; - `emacros-macro-list'
+;; - `emacros--there-are-keyboard-macros'
+;; - `emacros--macro-list'
 
 ;; Buffer/File protection macro
 ;; ----------------------------
@@ -278,8 +278,6 @@ Each list is headed by the name of the mode to which it pertains.")
    (emacros-dirname-expanded d1)
    (emacros-dirname-expanded d2)))
 
-
-
 ;; ---------------------------------------------------------------------------
 ;; Keyboard- macro name & location control utilities
 ;; -------------------------------------------------
@@ -400,7 +398,7 @@ Those are the symbols that have a non-void function definition and are macro."
          (or (vectorp sym-fu)
              (stringp sym-fu)))))
 
-(defun emacros-there-are-keyboard-macros ()
+(defun emacros--there-are-keyboard-macros ()
   "Return t if there is at least one keyboard macro currently defined."
   (catch 'macro-found
     (mapatoms (lambda (symbol)
@@ -408,7 +406,7 @@ Those are the symbols that have a non-void function definition and are macro."
                     (throw 'macro-found t))))
     nil))
 
-(defun emacros-macro-list ()
+(defun emacros--macro-list ()
   "Return a sorted list of all keyboard macro symbols."
   (let (macro-list)
     (mapatoms (lambda (symbol)
@@ -771,7 +769,7 @@ Prompts for an existing name of a keyboard macro and a new name
 to replace it.  Default for the old name is the name of the most recently
 named, inserted, or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
+  (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let* ((old-name (emacros--read-macro-name2 "Replace macroname"))
          (new-name (emacros--read-macro-name1
                     (format "Replace macroname %s with: " old-name) old-name))
@@ -859,6 +857,8 @@ named, inserted, or manipulated macro in the current buffer."
              renamed
              macro-file)))
 
+;; ---------------------------------------------------------------------------
+
 (defun emacros-move-macro ()
   "Move macro from local to global macro file or vice versa.
 Prompts for the name of a keyboard macro and a choice between
@@ -867,7 +867,7 @@ macro from the current local macro file to the global one or
 vice versa. Default is the name of the most recently saved, inserted,
 or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
+  (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (if (emacros-same-dirname default-directory emacros-global-dirpath)
       (user-error "Local = global in this buffer"))
   (let ((name (emacros--read-macro-name2 "Move macro named"))
@@ -972,7 +972,7 @@ or manipulated macro in the current buffer."
 The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
+  (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let* ((name (emacros--read-macro-name2 "Remove macro named"))
          (macro-file            (emacros--db-mode-filename))
          (local-macro-filename  (emacros--db-mode-filepath))
@@ -1027,7 +1027,7 @@ inserted, or manipulated macro in the current buffer."
 Default is the most recently saved, inserted, or manipulated macro
 in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
+  (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let ((name (emacros--read-macro-name2 "Execute macro named")))
     (setq emacros-last-name name)
     (execute-kbd-macro name)))
@@ -1039,7 +1039,7 @@ Backspace acts normally, \\[keyboard-quit] exits, RET does rudimentary completio
 Default is the most recently saved, inserted, or manipulated macro
 in the current buffer."
   (interactive)
-  (or (emacros-there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
+  (or (emacros--there-are-keyboard-macros) (user-error "No named kbd-macros defined"))
   (let ((prompt (format "Auto-execute macro named%s: "
                         (if (emacros--macrop emacros-last-name)
                             (format " (default %s)" emacros-last-name)
@@ -1144,7 +1144,7 @@ created during present session."
 (defun emacros-show-macros ()
   "Displays the kbd-macros that are currently defined."
   (interactive)
-  (let* ((mlist (emacros-macro-list))
+  (let* ((mlist (emacros--macro-list))
          (next-macro-name (car mlist))
          (next-macro-definition (if next-macro-name (symbol-function next-macro-name) nil)))
     (or next-macro-name (user-error "No named kbd-macros defined"))
@@ -1195,7 +1195,7 @@ created during present session."
 With prefix ARG, display macro names in a single column instead of the
 usual two column format."
   (interactive "P")
-  (let* ((mlist (emacros-macro-list))
+  (let* ((mlist (emacros--macro-list))
          (current-macro-name (car mlist))
          (current-column 0)
          (padding-width 0))
@@ -1231,7 +1231,7 @@ When called in a buffer, this function produces, as far as
 kbd-macros are concerned, the same situation as if Emacs had
 just been started and the current file read from the file system."
   (interactive)
-  (let* ((mlist (emacros-macro-list))
+  (let* ((mlist (emacros--macro-list))
          (next (car mlist)))
     (while next
       (fmakunbound next)
