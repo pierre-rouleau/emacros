@@ -929,16 +929,8 @@ First change current directory to move a macro between local and global."))
        (format
         "Buffer visiting %s macro file modified.  Continue? (May save!)?"
         (if (= gl ?g) "global" "local"))))
-    (emacros--within buf1 or filename1
-      do
-      (goto-char (point-min))
-      (when (emacros--search-for name)
-        (setq name-found-in-source t)))
-    (emacros--within buf2 or filename2
-      do
-      (goto-char (point-min))
-      (when (emacros--search-for name)
-        (setq name-found-in-target t)))
+    (setq name-found-in-source (emacros--is-defined-in name buf1 filename1))
+    (setq name-found-in-target (emacros--is-defined-in name buf1 filename2))
     (unless name-found-in-source
       (user-error "Macro named %s not found in %s file %s"
                   name (if (= gl ?l) "local" "global") macro-file))
