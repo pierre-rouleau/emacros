@@ -1212,36 +1212,29 @@ created during present session."
 With prefix ARG, display macro names in a single column instead of the
 usual two column format."
   (interactive "P")
-  (let* ((mlist (emacros--macro-list))
-         (current-macro-name (car mlist))
-         (current-column 0)
-         (padding-width 0))
-    (unless current-macro-name
+  (let ((kbmacros (emacros--macro-list)))
+    (unless kbmacros
       (user-error "No named kbd-macros defined"))
     (with-output-to-temp-buffer "*Help*"
-      (princ "Below are the names of all currently defined macros.\n")
-      (princ "Use emacros-show-macros to see the macro names with their definitions.\n\n")
-      (while current-macro-name
-        (if (not (eq current-column 0))
-            (progn
+      (princ "Below are the names of all currently defined macros.\n\
+Use `emacros-show-macros' to see the macro names with their definitions.\n\n")
+      (let ((current-column 0)
+            (padding-width  0))
+        (dolist (kbmacro kbmacros)
+          (let ((kbmacro-name (prin1-to-string kbmacro)))
+            (unless (eq current-column 0)
               (setq padding-width (- 35 current-column))
               (if (< 0 padding-width)
                   (progn  (princ (make-string padding-width 32))
                           (setq current-column (+ current-column padding-width)))
                 (terpri)
-                (setq current-column 0))))
-        (setq current-macro-name (prin1-to-string current-macro-name))
-        (princ current-macro-name)
-        (if (not arg)
-            (setq current-column (+ current-column (length current-macro-name)))
-          (terpri))
-        (setq mlist (cdr mlist))
-        (setq current-macro-name (car mlist)))
-      (if (not arg)(terpri))
-      (princ " ") ; Funny, RMS is such a stickler for newline at EOF, and
-                  ; his own printstream drops newlines at the end unless you
-                  ; follow it by something else.
-    (help-print-return-message))))
+                (setq current-column 0)))
+            (princ kbmacro-name)
+            (if arg
+                (terpri)
+              (setq current-column (+ current-column (length kbmacro-name)))))))
+      (terpri)
+      (help-print-return-message))))
 
 (defun emacros-refresh-macros ()
   "Erases all macros and then reloads for current buffer.
@@ -1249,12 +1242,8 @@ When called in a buffer, this function produces, as far as
 kbd-macros are concerned, the same situation as if Emacs had
 just been started and the current file read from the file system."
   (interactive)
-  (let* ((mlist (emacros--macro-list))
-         (next (car mlist)))
-    (while next
-      (fmakunbound next)
-      (setq mlist (cdr mlist))
-      (setq next (car mlist))))
+  (dolist (kbd-macro-symbol (emacros--macro-list))
+    (fmakunbound kbd-macro-symbol))
   (setq emacros-ok nil)
   (setq last-kbd-macro nil)
   (setq emacros-last-name nil)
