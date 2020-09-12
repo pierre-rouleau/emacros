@@ -1217,13 +1217,15 @@ Use `emacros-show-macros' to see the macro names with their definitions.\n\n")
               (setq padding-width (- 35 current-column))
               (if (< 0 padding-width)
                   (progn  (princ (make-string padding-width 32))
-                          (setq current-column (+ current-column padding-width)))
+                          (setq current-column
+                                (+ current-column padding-width)))
                 (terpri)
                 (setq current-column 0)))
             (princ kbmacro-name)
             (if arg
                 (terpri)
-              (setq current-column (+ current-column (length kbmacro-name)))))))
+              (setq current-column
+                    (+ current-column (length kbmacro-name)))))))
       (terpri)
       (help-print-return-message))))
 
