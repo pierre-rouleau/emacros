@@ -187,6 +187,7 @@
 ;; ---------------------------------------------------------------------------
 ;;; Dependencies:
 
+;; - Emacs 23 or later : requires Unicode support TODO
 (eval-when-compile (require 'subr-x))   ; use: string-join
 
 ;; ---------------------------------------------------------------------------
@@ -1160,52 +1161,42 @@ created during present session."
 (defun emacros-show-macros ()
   "Displays the kbd-macros that are currently defined."
   (interactive)
-  (let* ((mlist (emacros--macro-list))
-         (next-macro-name (car mlist))
-         (next-macro-definition (if next-macro-name (symbol-function next-macro-name) nil)))
-    (unless next-macro-name
+  (let ((kbmacros (emacros--macro-list)))
+    (unless kbmacros
       (user-error "No named kbd-macros defined"))
     (with-output-to-temp-buffer "*Help*"
-      (princ "Below are all currently defined keyboard macros.\n")
-      (princ "Use emacros-show-macro-names to see just the macro names.\n\n")
-      (while next-macro-name
-        (setq next-macro-definition (symbol-function next-macro-name))
-        (princ next-macro-name)
-        (princ "  ")
-        (if (stringp next-macro-definition)
-            (prin1 next-macro-definition)
-          (let ((nextevent)
-                (eventlist (append next-macro-definition nil))
-                (in-char-sequence nil)
-                (in-keyboard-event-sequence nil))
-            (while eventlist
-              (setq nextevent (car eventlist))
-              (setq eventlist (cdr eventlist))
-              (if (integerp nextevent)
-                  (progn
-                    (if in-keyboard-event-sequence (princ " "))
-                    (if (not in-char-sequence) (princ "\""))
-                    (if (and (<= 0 nextevent)
-                             (<= nextevent 255))
-                        (princ (char-to-string nextevent))
-                      (princ (char-to-string 127))) ;for the lack of better
-                    (setq in-char-sequence t)
-                    (setq in-keyboard-event-sequence nil))
-                (if in-char-sequence (princ "\""))
-                (if (or in-char-sequence in-keyboard-event-sequence) (princ " "))
-                (princ "<")
-                (prin1 nextevent)
-                (princ ">")
-                (setq in-char-sequence nil)
-                (setq in-keyboard-event-sequence t)))
-            (if in-char-sequence (princ "\""))))
-        (terpri)
-        (setq mlist (cdr mlist))
-        (setq next-macro-name (car mlist)))
-      (princ " ") ; Funny, RMS is such a stickler for newline at EOF, and
-                  ; his own printstream drops newlines at the end unless you
-                  ; follow them by something else.
-    (help-print-return-message))))
+      (princ "Below are all currently defined keyboard macros.\n\
+Use emacros-show-macro-names to see just the macro names.\n\n")
+      (dolist (kbmacro kbmacros)
+        (let ((kbmacro-definition (if kbmacro
+                                      (symbol-function kbmacro)
+                                    nil)))
+          (princ kbmacro)
+          (princ "  ")
+          (if (stringp kbmacro-definition)
+              (prin1 kbmacro-definition)
+            (let ((in-char-sequence nil)
+                  (in-keyboard-event-sequence nil))
+              (dolist (event (append kbmacro-definition nil))
+                (if (integerp event)
+                    (progn
+                      (when in-keyboard-event-sequence (princ " "))
+                      (unless in-char-sequence (princ "\""))
+                      ;; next line, note that Emacs >= 23 supports Unicode
+                      (princ (char-to-string event))
+                      (setq in-char-sequence t)
+                      (setq in-keyboard-event-sequence nil))
+                  (when in-char-sequence (princ "\""))
+                  (when (or in-char-sequence in-keyboard-event-sequence)
+                    (princ " "))
+                  (princ "<")
+                  (prin1 event)
+                  (princ ">")
+                  (setq in-char-sequence nil)
+                  (setq in-keyboard-event-sequence t)))
+              (when in-char-sequence (princ "\""))))
+          (terpri)))
+      (help-print-return-message))))
 
 (defun emacros-show-macro-names (arg)
   "Display the names of the kbd-macros that are currently defined.
