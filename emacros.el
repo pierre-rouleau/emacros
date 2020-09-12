@@ -271,10 +271,7 @@ This is the name of the last macro moved or saved by function
 `emacros-name-last-kbd-macro-add' with no prefix argument.")
 
 
-(defvar emacros-ok
-  nil
-  "List of lists of directories from which kbd-macro files have been loaded.
-Each list is headed by the name of the mode to which it pertains.")
+
 
 
 (defvar emacros-read-existing-macro-name-history-list
@@ -1107,6 +1104,15 @@ in the current buffer."
     (setq emacros-last-name symbol)
     (execute-kbd-macro symbol)))
 
+;; ---------------------------------------------------------------------------
+;; Loading and Refreshing Macros
+;; -----------------------------
+
+(defvar emacros-ok
+  nil
+  "List of lists of directories from which kbd-macro files have been loaded.
+Each list is headed by the name of the mode to which it pertains.")
+
 ;;;###autoload
 (defun emacros-load-macros ()
   "Attempt to load macro definitions file.
@@ -1157,6 +1163,24 @@ created during present session."
           (setq nextmac (cons processed-mode-name
                               (append (cons default-directory dirli) dirlist)))))
       (setq emacros-ok (append (cons nextmac mac-ok) emacros-ok)))))
+
+(defun emacros-refresh-macros ()
+  "Erases all macros and then reloads for current buffer.
+When called in a buffer, this function produces, as far as
+kbd-macros are concerned, the same situation as if Emacs had
+just been started and the current file read from the file system."
+  (interactive)
+  (dolist (kbd-macro-symbol (emacros--macro-list))
+    (fmakunbound kbd-macro-symbol))
+  (setq emacros-ok nil)
+  (setq last-kbd-macro nil)
+  (setq emacros-last-name nil)
+  (setq emacros-last-saved nil)
+  (emacros-load-macros)
+  (message "Macros refreshed for current buffer"))
+
+;; ---------------------------------------------------------------------------
+
 
 (defun emacros-show-macros ()
   "Displays the kbd-macros that are currently defined."
@@ -1228,21 +1252,6 @@ Use `emacros-show-macros' to see the macro names with their definitions.\n\n")
                     (+ current-column (length kbmacro-name)))))))
       (terpri)
       (help-print-return-message))))
-
-(defun emacros-refresh-macros ()
-  "Erases all macros and then reloads for current buffer.
-When called in a buffer, this function produces, as far as
-kbd-macros are concerned, the same situation as if Emacs had
-just been started and the current file read from the file system."
-  (interactive)
-  (dolist (kbd-macro-symbol (emacros--macro-list))
-    (fmakunbound kbd-macro-symbol))
-  (setq emacros-ok nil)
-  (setq last-kbd-macro nil)
-  (setq emacros-last-name nil)
-  (setq emacros-last-saved nil)
-  (emacros-load-macros)
-  (message "Macros refreshed for current buffer"))
 
 ;; ---------------------------------------------------------------------------
 (provide 'emacros)
