@@ -98,6 +98,7 @@
 ;;
 ;; - `emacros--is-defined-in' checks if a macro is defined in a specified buffer
 ;;   or file.
+;; - `emacros--remove-macro-definition-from-file'
 
 ;; Basic prompting
 ;; ---------------
@@ -181,8 +182,6 @@
 ;; * `emacros-show-macro-names'
 ;; * `emacros-refresh-macros'
 
-;; - `emacros--remove-macro-definition-from-file'
-;;   - `emacros--remove-macro-definition'
 
 
 ;; ---------------------------------------------------------------------------
@@ -488,6 +487,14 @@ Example:
       (goto-char (point-min))
       (setq found (emacros--search-for name)))
     found)))
+
+(defun emacros--remove-macro-definition-from-file (name buf filename)
+  "Remove first definition of macro NAME from BUF or FILENAME."
+  (when (or buf (file-exists-p filename))
+    (emacros--within buf or filename
+      do
+      (emacros--remove-macro-definition name)
+      (save-buffer 0))))
 
 ;; ---------------------------------------------------------------------------
 ;; Basic Prompting
@@ -1254,15 +1261,6 @@ just been started and the current file read from the file system."
   (setq emacros-last-saved nil)
   (emacros-load-macros)
   (message "Macros refreshed for current buffer"))
-
-
-(defun emacros--remove-macro-definition-from-file (symbol buf filename)
-  "Remove first definition of macro named SYMBOL from FILENAME."
-  (when (or buf (file-exists-p filename))
-    (emacros--within buf or filename
-      do
-      (emacros--remove-macro-definition symbol)
-      (save-buffer 0))))
 
 ;; ---------------------------------------------------------------------------
 (provide 'emacros)
