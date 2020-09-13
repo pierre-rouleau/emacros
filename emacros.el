@@ -1029,9 +1029,9 @@ The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
   (emacros--assert-existence-of-kbmacros)
-  (let* ((name        (emacros--read-macro-name2 "Remove macro named"))
-         (macro-file  (emacros--db-mode-filename))
-         (deleted     '()))
+  (let ((name        (emacros--read-macro-name2 "Remove macro named"))
+        (macro-file  (emacros--db-mode-filename))
+        (deleted     '()))
     (dolist (scope.filename
              (list
               (cons "local"  (emacros--db-mode-filepath))
