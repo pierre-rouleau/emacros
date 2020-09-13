@@ -135,6 +135,22 @@
 ;; Removing a keyboard macro
 ;; -------------------------
 
+;; Commands: Load and refresh macro definitions from files
+;; -------------------------------------------------------
+;;
+;; * `emacros-refresh-macros'
+;;   * `emacros-load-macros'
+;;     - `emacros--mode-load-state'
+;;     - `emacros--global-loaded-for'
+;;     - `emacros--add-local-dir-to'
+;;        > `emacros--already-loaded-dirs'
+
+;; Commands: show keyboard macros
+;; ------------------------------
+;;
+;; * `emacros-show-macros'
+;; * `emacros-show-macro-names'
+
 
 
 ;; Call hierarchy
@@ -1053,6 +1069,8 @@ inserted, or manipulated macro in the current buffer."
              deleted
              macro-file)))
 
+;; ---------------------------------------------------------------------------
+
 (defun emacros-execute-named-macro ()
   "Prompts for the name of a macro and execute it.  Does completion.
 Default is the most recently saved, inserted, or manipulated macro
@@ -1122,8 +1140,8 @@ in the current buffer."
     (execute-kbd-macro symbol)))
 
 ;; ---------------------------------------------------------------------------
-;; Loading and Refreshing Macros
-;; -----------------------------
+;; Commands: Load and refresh macro definitions from files
+;; -------------------------------------------------------
 
 (defvar emacros--already-loaded-dirs
   (make-hash-table :test 'equal)
@@ -1133,7 +1151,7 @@ Cleared by refresh.")
 (defun emacros--mode-load-state (mode)
   "Return loading state for the specified MODE.
 Return nil if nothing was loaded, otherwise return a
-(global-loaded . local-dir-list) cons cell, where
+cons cell of form (global-loaded . local-dir-list), where
 - global-loaded is t if global definitions where loaded, nil otherwise.
 - local-dir-list: a list of string, the name of each directory from which
   the local definitions were loaded. The list is nil if no local
@@ -1202,7 +1220,8 @@ just been started and the current file read from the file system."
   (message "Macros refreshed for current buffer"))
 
 ;; ---------------------------------------------------------------------------
-
+;; Commands: show keyboard macros
+;; ------------------------------
 
 (defun emacros-show-macros ()
   "Displays the kbd-macros that are currently defined."
