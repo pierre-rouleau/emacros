@@ -735,12 +735,20 @@ Allow OVERWRITE is requested."
   (let ((find-file-hook nil)
         (emacs-lisp-mode-hook nil)
         (after-save-hook nil)
-        (kill-buffer-hook nil))
+        (kill-buffer-hook nil)
+        (dirname nil))
     (save-excursion
       (if buf
-          (set-buffer buf)
+          (progn
+            (set-buffer buf)
+            (setq filename (buffer-file-name buf)))
         (find-file filename))
       (emacros--insert-kbd-macro macro-name macro-code overwrite)
+      ;; create the directory if it does not exits before saving
+      ;; to prevent Emacs from prompting.
+      (setq dirname (file-name-directory filename))
+      (unless (file-exists-p dirname)
+        (make-directory dirname :and-create-parents))
       (save-buffer 0)
       (unless buf
         (kill-buffer
