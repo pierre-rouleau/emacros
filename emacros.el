@@ -730,12 +730,21 @@ issue a user-error when user wants to abort."
   "Write keyboard macro of name MACRO-NAME and code MACRO-CODE.
 Store it in either buffer BUF or file FILENAME.
 Allow OVERWRITE is requested."
-  ;; disable hooks while writing to file
-  (emacros--within buf or filename
-    do
-    (emacros--insert-kbd-macro macro-name macro-code overwrite)
-    ;; prevent backup
-    (save-buffer 0)))
+  ;; Don't use the macro because it does not handle case where
+  ;; file does not exists.
+  (let ((find-file-hook nil)
+        (emacs-lisp-mode-hook nil)
+        (after-save-hook nil)
+        (kill-buffer-hook nil))
+    (save-excursion
+      (if buf
+          (set-buffer buf)
+        (find-file filename))
+      (emacros--insert-kbd-macro macro-name macro-code overwrite)
+      (save-buffer 0)
+      (unless buf
+        (kill-buffer
+         (buffer-name))))))
 
 (defun emacros-name-last-kbd-macro-add (&optional arg)
   "Assigns a name to the last keyboard macro defined.
@@ -1108,61 +1117,65 @@ in the current buffer."
 ;; Loading and Refreshing Macros
 ;; -----------------------------
 
-(defvar emacros-ok
-  nil
-  "List of lists of directories from which kbd-macro files have been loaded.
-Each list is headed by the name of the mode to which it pertains.")
+(defvar emacros--already-loaded-dirs
+  (make-hash-table :test 'equal)
+  "Maps mode-name -> list of loaded local directories.
+Cleared by refresh.")
+
+(defun emacros--mode-load-state (mode)
+  "Return loading state for the specified MODE.
+Return nil if nothing was loaded, otherwise return a
+(global-loaded . local-dir-list) cons cell, where
+- global-loaded is t if global definitions where loaded, nil otherwise.
+- local-dir-list: a list of string, the name of each directory from which
+  the local definitions were loaded. The list is nil if no local
+  definitions were loaded."
+  (gethash mode emacros--already-loaded-dirs))
+
+(defun emacros--global-loaded-for (mode)
+  "Remember that the global definitions were loaded for the MODE."
+  (let ((glob.locl (gethash mode emacros--already-loaded-dirs)))
+    (puthash mode
+             (cons t (cdr glob.locl))
+             emacros--already-loaded-dirs)))
+
+(defun emacros--add-local-dir-to (mode dirname)
+  "Remember a new DIRNAME being loaded for MODE."
+  (let ((glob.locl (gethash mode emacros--already-loaded-dirs)))
+    (puthash mode
+             (cons (car glob.locl)
+                   (cons dirname
+                         (cdr glob.locl)))
+             emacros--already-loaded-dirs)))
 
 ;;;###autoload
 (defun emacros-load-macros ()
-  "Attempt to load macro definitions file.
-The file is mode-mac.el  (where \"mode\"
-stands for the name of the current mode\)
-from current directory and from directory emacros-global-dirpath.
-If the mode name contains a forward slash, then only the
-initial substring of the mode name up to but not including
-the forward slash is used.
-
-Does not consider files that have been loaded previously or
-created during present session."
+  "Load existing keyboard macros for the current mode.
+Attempt to load from the global directory and the current
+local directory if the files exist for the current mode.
+Remember the loaded directories inside
+`emacros--already-loaded-dirs'."
   (interactive)
-  (let ((processed-mode-name (emacros--processed-mode-name)))
-    (let ((macro-file (emacros--db-mode-filename))
-          (mac-ok)
-          (nextmac)
-          (filename))
-      (catch 'found-mode
-        (while emacros-ok
-          (setq nextmac (car emacros-ok))
-          (setq emacros-ok (cdr emacros-ok))
-          (and (equal processed-mode-name (car nextmac))
-               (throw 'found-mode t))
-          (setq mac-ok (cons nextmac mac-ok))
-          (setq nextmac nil)))
-      (setq filename (emacros--db-mode-filepath :global))
-      (if (file-exists-p filename)
-          (progn (or nextmac (load-file filename))
-                 (setq emacros-glob-loc ?g)))
-      (if (emacros-same-dirname default-directory emacros-global-dirpath)
-          (progn (setq emacros-glob-loc ?g)
-                 (setq nextmac (cons processed-mode-name (cdr nextmac))))
-        (let ((dirlist (cdr nextmac))
-              (dirli)
-              (nextdir))
-          (catch 'found-dir
-            (while dirlist
-              (setq nextdir (car dirlist))
-              (setq dirlist (cdr dirlist))
-              (and (equal default-directory nextdir) (throw 'found-dir t))
-              (setq dirli (cons nextdir dirli))
-              (setq nextdir nil)))
-          (setq filename (expand-file-name macro-file default-directory))
-          (if (file-exists-p filename)
-              (progn (or nextdir (load-file filename))
-                     (setq emacros-glob-loc ?l)))
-          (setq nextmac (cons processed-mode-name
-                              (append (cons default-directory dirli) dirlist)))))
-      (setq emacros-ok (append (cons nextmac mac-ok) emacros-ok)))))
+  (let* ((mode-name         (emacros--processed-mode-name))
+         (globdef-fname     (emacros--db-mode-filepath :global))
+         (locdef-fname      (emacros--db-mode-filepath))
+         (glob.locl         (emacros--mode-load-state mode-name))
+         (global-loaded     (car glob.locl))
+         (loaded-local-dirs (cdr glob.locl)))
+    ;; If the global definition file for current mode exists
+    ;; and it has not been loaded, load it.
+    (when (file-exists-p globdef-fname)
+      (unless global-loaded
+        (load-file globdef-fname)
+        (emacros--global-loaded-for mode-name))
+      (setq emacros-glob-loc ?g))
+    ;; if the local definition file for the current mode exists
+    ;; and has not been loaded, load it.
+    (when (file-exists-p locdef-fname)
+      (unless (member default-directory loaded-local-dirs)
+        (load-file locdef-fname)
+        (emacros--add-local-dir-to mode-name default-directory))
+      (setq emacros-glob-loc ?l))))
 
 (defun emacros-refresh-macros ()
   "Erases all macros and then reloads for current buffer.
@@ -1172,7 +1185,8 @@ just been started and the current file read from the file system."
   (interactive)
   (dolist (kbd-macro-symbol (emacros--macro-list))
     (fmakunbound kbd-macro-symbol))
-  (setq emacros-ok nil)
+  (clrhash emacros--already-loaded-dirs)
+  ;; (setq emacros-ok nil)
   (setq last-kbd-macro nil)
   (setq emacros-last-name nil)
   (setq emacros-last-saved nil)
