@@ -50,8 +50,8 @@
 ;; - `emacros-dirname-expanded'
 ;; - `emacros-same-dirname'
 
-;; Keyboard- macro name & location control utilities
-;; -------------------------------------------------
+;; Keyboard macro name & location control utilities
+;; ------------------------------------------------
 ;;
 ;; - `emacros--processed-mode-name'
 ;; - `emacros--db-mode-filename'
@@ -142,6 +142,12 @@
 ;;
 ;; * `emacros-remove-macro'
 
+;; Commands: Execute keyboard macros defined with emacros
+;; ------------------------------------------------------
+;;
+;; * `emacros-execute-named-macro'
+;; * `emacros-auto-execute-named-macro'
+
 ;; Commands: Load and refresh macro definitions from files
 ;; -------------------------------------------------------
 ;;
@@ -157,55 +163,6 @@
 ;;
 ;; * `emacros-show-macros'
 ;; * `emacros-show-macro-names'
-
-
-
-;; Call hierarchy
-;; ==============
-;;
-;; - `emacros-dirname-expanded'
-;; - `emacros-same-dirname'
-;; - `emacros--macrop'
-;; - `emacros--processed-mode-name'
-
-;; - `emacros--db-mode-filename'
-;; - `emacros--db-mode-filepath'
-;; - `emacros--db-mode-str'
-
-;; - `emacros-new-macro'
-
-;; * `emacros-name-last-kbd-macro-add'
-;;   - `emacros--read-macro-name1'
-;;     + `emacros--exit-macro-read1'
-;;   - `emacros--select-scope'
-;;     - `emacros--waitforkey'
-;;     - `emacros--warn'
-;;     - `emacros--continue-or-abort'
-;;   - `emacros--is-overwrite-needed-and-allowed'
-;;     - `emacros--is-defined-in'
-;;       @ `emacros--within'
-;;          - `emacros--search-for'
-;;     - `emacros--continue-or-abort'
-;;   - `emacros--write-kbmacro-to'
-;;      @ `emacros--within'
-;;      - `emacros--insert-kbd-macro'
-;;        - `emacros--remove-macro-definition'
-;;          - `emacros--search-for'
-
-;; * `emacros-rename-macro'
-;;   - `emacros--read-macro-name1'
-;;     + `emacros--exit-macro-read1'
-
-;; * `emacros-move-macro'
-;; * `emacros-remove-macro'
-;; * `emacros-execute-named-macro'
-;; * `emacros-auto-execute-named-macro'
-;; * `emacros-load-macros'
-;; * `emacros-show-macros'
-;; * `emacros-show-macro-names'
-;; * `emacros-refresh-macros'
-
-
 
 ;; ---------------------------------------------------------------------------
 ;;; Dependencies:
@@ -276,11 +233,9 @@ sub-directory")))
 ;; Variables
 ;; ---------
 
-
 (defvar-local emacros-glob-loc ?l
   "Default for saving named kbd-macros.
 Value ?l means local, value ?g means global.")
-
 
 (defvar-local emacros-last-name
   nil
@@ -293,13 +248,6 @@ Value ?l means local, value ?g means global.")
 This is the name of the last macro moved or saved by function
 `emacros-name-last-kbd-macro-add' with no prefix argument.")
 
-
-
-
-
-(defvar emacros-read-existing-macro-name-history-list
-  nil
-  "History list variable for reading the name of an existing macro.")
 
 ;; ---------------------------------------------------------------------------
 ;; Basic directory name utilities
@@ -316,8 +264,8 @@ This is the name of the last macro moved or saved by function
    (emacros-dirname-expanded d2)))
 
 ;; ---------------------------------------------------------------------------
-;; Keyboard- macro name & location control utilities
-;; -------------------------------------------------
+;; Keyboard macro name & location control utilities
+;; ------------------------------------------------
 
 (defun emacros--processed-mode-name ()
   "Return a valid mode name.
@@ -611,7 +559,8 @@ with the exception of optional argument LETGO symbol."
                (if (and
                     (not (vectorp sym-fu))
                     (not (stringp sym-fu)))
-                   (error "Function %s is already defined and not a keyboard macro" symbol))))
+                   (error "Non keyboard macro function %s already defined"
+                          symbol))))
     symbol))
 
 ;; ---------------------------------------------------------------------------
@@ -644,6 +593,10 @@ function `emacros--read-macro-name2'."
     (sit-for 2)
     (delete-region (minibuffer-prompt-end) (point-max))))
 
+(defvar emacros-read-existing-macro-name-history-list
+  nil
+  "History list variable for reading the name of an existing macro.")
+
 (defun emacros--read-macro-name2 (prompt)
   "Read an existing name of a kbd-macro, prompting with PROMPT.
 PROMPT must be given without trailing colon and blank.
@@ -661,10 +614,10 @@ Supports minibuffer completion."
                              (if emacros--default
                                  (format " (default %s)" emacros-last-name)
                                ""))
-                     obarray            ; collection: all objects
-                     'emacros--macrop    ; predicate: that are macros
-                     t                  ; require-match: must chose complete element
-                     nil                ;
+                     obarray          ; collection: all objects
+                     'emacros--macrop ; predicate: that are macros
+                     t                ; require-match: chose complete element
+                     nil              ;
                      'emacros-read-existing-macro-name-history-list
                      (if emacros--default
                          (format "%s" emacros-last-name)
@@ -1071,6 +1024,9 @@ inserted, or manipulated macro in the current buffer."
              macro-file)))
 
 ;; ---------------------------------------------------------------------------
+;; Commands: Execute keyboard macros defined with emacros
+;; ------------------------------------------------------
+
 
 (defun emacros-execute-named-macro ()
   "Prompts for the name of a macro and execute it.  Does completion.
@@ -1107,36 +1063,41 @@ in the current buffer."
                    (and (> char ?9) (< char ?A))
                    (and (> char ?Z) (< char ?a))
                    (> char ?z)))
-          (and (null (ding))
-               (message "%s%s [Illegal character]" prompt name)
-               (sit-for 2))
-        (if (= char ?\C-?)
-        (if (equal name "")
+          (progn
             (ding)
-          (setq name (substring name 0 (- (length name) 1))))
-        (if (= char ?\r)
+            (message "%s%s [Illegal character]" prompt name)
+            (sit-for 2))
+        (if (= char ?\C-?)
             (if (equal name "")
-                (if (emacros--macrop emacros-last-name)
-                    (progn (setq symbol emacros-last-name)
-                           (setq is-macro t))
-                  (ding)
-                  (message "%s[No default]" prompt)
-                  (sit-for 2))
-              (if (null (setq compl
-                              (try-completion name obarray 'emacros--macrop)))
-                  (and (null (ding))
-                       (message "%s%s [No match]" prompt name)
-                       (sit-for 2))
-                (if (equal compl name)
-                    (and (null (ding))
-                         (message "%s%s [Not yet unique]" prompt name)
-                         (sit-for 2))
-                  (setq name compl)
-                  (setq symbol (car (read-from-string name)))
-                  (setq is-macro (emacros--macrop symbol)))))
-          (setq name (concat name (char-to-string char)))
-          (setq symbol (car (read-from-string name)))
-          (setq is-macro (emacros--macrop symbol))))))
+                (ding)
+              (setq name (substring name 0 (- (length name) 1))))
+          (if (= char ?\r)
+              (if (equal name "")
+                  (if (emacros--macrop emacros-last-name)
+                      (progn
+                        (setq symbol emacros-last-name)
+                        (setq is-macro t))
+                    (ding)
+                    (message "%s[No default]" prompt)
+                    (sit-for 2))
+                (if (null
+                     (setq compl
+                           (try-completion name obarray 'emacros--macrop)))
+                    (progn
+                      (ding)
+                      (message "%s%s [No match]" prompt name)
+                      (sit-for 2))
+                  (if (equal compl name)
+                      (progn
+                        (ding)
+                        (message "%s%s [Not yet unique]" prompt name)
+                        (sit-for 2))
+                    (setq name compl)
+                    (setq symbol (car (read-from-string name)))
+                    (setq is-macro (emacros--macrop symbol)))))
+            (setq name (concat name (char-to-string char)))
+            (setq symbol (car (read-from-string name)))
+            (setq is-macro (emacros--macrop symbol))))))
     (setq emacros-last-name symbol)
     (execute-kbd-macro symbol)))
 
