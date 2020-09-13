@@ -40,8 +40,8 @@
 
 
 ;; The following describes the emacros commands ('*'), functions ('-'),
-;; interactive functions ('+') and macros ('@') code sections and the
-;; call hierarchies.
+;; interactive functions ('+'), macros ('@') and variables ('>') code
+;; sections and the call hierarchies.
 
 
 ;; Basic directory name utilities
@@ -130,10 +130,17 @@
 ;; Command: Rename a keyboard macro
 ;; --------------------------------
 ;;
-;; - `emacros-rename-macro'
+;; * `emacros-rename-macro'
 
-;; Removing a keyboard macro
-;; -------------------------
+;; Command: Move macro between local/global file
+;; ---------------------------------------------
+;;
+;; * `emacros-move-macro'
+
+;; Command: Remove a keyboard macro
+;; --------------------------------
+;;
+;; * `emacros-remove-macro'
 
 ;; Commands: Load and refresh macro definitions from files
 ;; -------------------------------------------------------
@@ -1013,6 +1020,8 @@ First change current directory to move a macro between local and global."))
                name (if (= gl ?l) "global" "local") macro-file))))
 
 ;; ---------------------------------------------------------------------------
+;; Command: Remove a keyboard macro
+;; --------------------------------
 
 (defun emacros-remove-macro ()
   "Remove macro from current session and from current macro files.
@@ -1020,53 +1029,45 @@ The macroname defaults to the name of the most recently saved,
 inserted, or manipulated macro in the current buffer."
   (interactive)
   (emacros--assert-existence-of-kbmacros)
-  (let* ((name (emacros--read-macro-name2 "Remove macro named"))
-         (macro-file            (emacros--db-mode-filename))
-         (local-macro-filename  (emacros--db-mode-filepath))
-         (global-macro-filename (emacros--db-mode-filepath :global))
-         (filename              local-macro-filename)
-         (buf)
-         (deleted))
-    (when (and (setq buf (get-file-buffer filename))
-               (buffer-modified-p buf))
-      (emacros--continue-or-abort
-         "Buffer visiting local macro file modified. Continue? (May save!)?"))
-    (while filename
-      (emacros--within buf or filename
-        do
-        (goto-char (point-min))
-        (when (emacros--search-for name)
-          (beginning-of-line)
-          (let ((beg (point)))
-            (emacros--move-after-new-macro-form)
-            (beginning-of-line)
-            (delete-region beg (point)))
-          (when deleted
-            (setq deleted (concat deleted " and ")))
-          (setq deleted (concat deleted
-                                (if (equal filename local-macro-filename)
-                                    "local"
-                                  "global")))
-          (save-buffer 0)))
-      (if (equal filename global-macro-filename)
-          (setq filename nil)
-        (setq filename global-macro-filename)
+  (let* ((name        (emacros--read-macro-name2 "Remove macro named"))
+         (macro-file  (emacros--db-mode-filename))
+         (deleted     '()))
+    (dolist (scope.filename
+             (list
+              (cons "local"  (emacros--db-mode-filepath))
+              (cons "global" (emacros--db-mode-filepath :global))))
+      (let ((scope     (car scope.filename))
+            (filename  (cdr scope.filename))
+            (buf))
         (when (and (setq buf (get-file-buffer filename))
                    (buffer-modified-p buf))
           (emacros--continue-or-abort
-           "Buffer visiting global macro file modified. Continue? (May save!)?"))))
-    (if (not deleted)
-        (user-error
-         "Macro named %s not found in current file(s) %s: no action taken"
-         name macro-file))
+           (format
+            "Buffer visiting %s macro file modified. Continue? (May save!)?"
+            scope)))
+        (emacros--within buf or filename
+          do
+          (goto-char (point-min))
+          (when (emacros--search-for name)
+            (beginning-of-line)
+            (let ((beg (point)))
+              (emacros--move-after-new-macro-form)
+              (beginning-of-line)
+              (delete-region beg (point)))
+            (setq deleted (cons scope deleted))
+            (save-buffer 0)))))
+    (unless deleted
+      (user-error
+       "Macro named %s not found in current file(s) %s: no action taken"
+       name macro-file))
     (fmakunbound name)
-    (and (equal name emacros-last-saved)
-         (setq emacros-last-saved nil))
-    (and (equal name emacros-last-name)
-         (setq emacros-last-name nil))
+    (when (equal name emacros-last-saved)
+      (setq emacros-last-saved nil))
+    (when (equal name emacros-last-name)
+      (setq emacros-last-name nil))
     (message "Removed macro named %s from %s file %s"
              name
-             deleted
+             (string-join deleted " and ")
              macro-file)))
 
 ;; ---------------------------------------------------------------------------
