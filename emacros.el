@@ -4,7 +4,7 @@
 ;; Modifications, updates after EMacros 5.0:  Pierre Rouleau
 
 ;; This is EMACROS 5.1, an extension to GNU Emacs.
-;; Copyright (C) 1993, 2007, 2020 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2007, 2020, 2021 Free Software Foundation, Inc.
 
 ;; EMACROS is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY.  No author or distributor
@@ -27,22 +27,24 @@
 ;;
 ;; Send bug reports, questions, and comments to: emacros@thbecker.net
 
-
-
+;; ---------------------------------------------------------------------------
 ;;; Commentary:
 ;;
-;; Usage:
+;; Usage
+;; =====
 ;;
-;; - Add the following code to your Emacs initialization code:
+;; - To use this, add the following code to your Emacs initialization code:
 ;;
+;;   (require 'emacros)
 ;;   (add-hook 'find-file-hook 'emacros-load-macros)
+;;
 
-
-
+;; Code Organization
+;; =================
+;;
 ;; The following describes the emacros commands ('*'), functions ('-'),
 ;; interactive functions ('+'), macros ('@') and variables ('>') code
 ;; sections and the call hierarchies.
-
 
 ;; Basic directory name utilities
 ;; ------------------------------
@@ -1190,10 +1192,12 @@ just been started and the current file read from the file system."
   (interactive)
   (let ((kbmacros (emacros--macro-list)))
     (unless kbmacros
-      (user-error "No named kbd-macros defined"))
+      (user-error "No named kbd-macros defined!"))
     (with-output-to-temp-buffer "*Help*"
-      (princ "Below are all currently defined keyboard macros.\n\
-Use emacros-show-macro-names to see just the macro names.\n\n")
+      (princ "Below are all currently defined keyboard macros.
+Use emacros-show-macro-names to see just the macro names.
+The local macros are stored in the local .emacros sub-directory.
+The global macros are stored in the ~/.emacros directory.\n\n")
       (dolist (kbmacro kbmacros)
         (let ((kbmacro-definition (if kbmacro
                                       (symbol-function kbmacro)
@@ -1232,7 +1236,7 @@ usual two column format."
   (interactive "P")
   (let ((kbmacros (emacros--macro-list)))
     (unless kbmacros
-      (user-error "No named kbd-macros defined"))
+      (user-error "No named kbd-macros defined!"))
     (with-output-to-temp-buffer "*Help*"
       (princ "Below are the names of all currently defined macros.\n\
 Use `emacros-show-macros' to see the macro names with their definitions.\n\n")
